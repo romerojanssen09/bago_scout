@@ -41,7 +41,7 @@ builder.Services.AddSession(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.None; // Allow HTTP for development
+    options.Cookie.SecurePolicy = CookieSecurePolicy.None; // Allow HTTP for deployment
 });
 
 // Add DbContext
@@ -54,13 +54,23 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 // Register Email Service
 builder.Services.AddScoped<IEmailService, EmailService>();
 
-// Configure Kestrel BEFORE building the app
-builder.WebHost.ConfigureKestrel(options =>
+// Kestrel Environment Configuration
+if (builder.Environment.IsDevelopment())
 {
-    options.ListenAnyIP(5180); // HTTP
-    options.ListenAnyIP(7030, listenOptions => listenOptions.UseHttps()); // HTTPS
-    options.ListenAnyIP(Convert.ToInt32(Environment.GetEnvironmentVariable("PORT") ?? "8080"));
-});
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        options.ListenAnyIP(5180); // Local HTTP
+        options.ListenAnyIP(7030, listenOptions => listenOptions.UseHttps()); // Local HTTPS
+    });
+}
+else
+{
+    // Production (Railway) environments will bind cleanly to port 8080 over HTTP
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        options.ListenAnyIP(8080);
+    });
+}
 
 var app = builder.Build();
 
@@ -68,11 +78,11 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
-if (!app.Environment.IsDevelopment())
+// REMOVED: app.UseHttpsRedirection() from production to prevent proxy redirect loops.
+if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
@@ -87,9 +97,12 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseRouting();
 
-app.UseSession(); // Add session middleware
+// CORS should be placed after UseRouting but before UseSession/UseAuthentication
+app.UseCors();
 
-app.UseAuthentication(); // Run Custom JWT Authentication Scheme
+app.UseSession();
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 
