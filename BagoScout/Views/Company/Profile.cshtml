@@ -1,0 +1,518 @@
+@{
+    @using Microsoft.Extensions.Configuration
+    @inject IConfiguration Configuration
+
+    ViewData["Title"] = "Company Profile";
+    ViewData["ActivePage"] = "CompanyProfile";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<style>
+    .profile-section {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .company-header {
+        display: flex;
+        align-items: start;
+        gap: 24px;
+    }
+    .company-logo-container {
+        text-align: center;
+        flex-shrink: 0;
+    }
+    .company-info-container {
+        flex: 1;
+        min-width: 0;
+    }
+    .company-logo {
+        width: 150px;
+        height: 150px;
+        border-radius: 12px;
+        object-fit: cover;
+        border: 4px solid #6C63FF;
+    }
+    .edit-btn {
+        background: #1C2B53;
+        color: white;
+        padding: 10px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+    .edit-btn:hover {
+        background: #6C63FF;
+    }
+    #map {
+        height: 400px;
+        border-radius: 8px;
+    }
+    .mapboxgl-ctrl-geocoder {
+        min-width: 100%;
+    }
+    
+    @@media (max-width: 768px) {
+        .page-header h2 {
+            font-size: 24px;
+        }
+        .page-header p {
+            font-size: 14px;
+        }
+        .profile-section {
+            padding: 16px;
+        }
+        .company-header {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .company-logo {
+            width: 120px;
+            height: 120px;
+        }
+        .company-info-container {
+            width: 100%;
+        }
+        .company-info-header {
+            flex-direction: column;
+            gap: 12px;
+        }
+        .edit-btn {
+            width: 100%;
+        }
+        #map {
+            height: 300px;
+        }
+    }
+</style>
+
+<div class="page-header mb-6">
+    <h2 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+        <i class="fas fa-building text-primary-purple"></i>
+        Company Profile
+    </h2>
+    <p class="text-gray-600 mt-2">Manage your company information</p>
+</div>
+
+<div id="profileContainer">
+    <div class="text-center py-12">
+        <i class="fas fa-spinner fa-spin text-4xl text-gray-400 mb-4"></i>
+        <p class="text-gray-600">Loading profile...</p>
+    </div>
+</div>
+
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
+<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+
+<script>
+    mapboxgl.accessToken = '@Configuration["MapBox:Token"]';
+    let companyProfile = null;
+
+    async function loadProfile() {
+        try {
+            const response = await fetch('/api/company/profile');
+            
+            if (!response.ok) throw new Error('Failed to fetch profile');
+            
+            companyProfile = await response.json();
+            renderProfile();
+
+        } catch (error) {
+            console.error('Error loading profile:', error);
+            document.getElementById('profileContainer').innerHTML = `
+                <div class="text-center py-12">
+                    <i class="fas fa-exclamation-circle text-6xl text-red-300 mb-4"></i>
+                    <h3 class="text-xl font-bold text-gray-700 mb-2">Error Loading Profile</h3>
+                    <p class="text-gray-600">Please try refreshing the page.</p>
+                </div>
+            `;
+        }
+    }
+
+    function renderProfile() {
+        const container = document.getElementById('profileContainer');
+        
+        container.innerHTML = `
+            <!-- Basic Info Section -->
+            <div class="profile-section">
+                <div class="company-header">
+                    <div class="company-logo-container">
+                        ${companyProfile.companyLogoPath ? `
+                            <img src="${companyProfile.companyLogoPath}" alt="Company Logo" class="company-logo mb-3">
+                        ` : `
+                            <div class="company-logo bg-indigo-100 flex items-center justify-center mb-3">
+                                <i class="fas fa-building text-6xl text-indigo-600"></i>
+                            </div>
+                        `}
+                        <button onclick="changeLogo()" class="text-sm text-primary-purple hover:underline">
+                            <i class="fas fa-camera mr-1"></i> Change Logo
+                        </button>
+                    </div>
+                    <div class="company-info-container">
+                        <div class="company-info-header flex justify-between items-center mb-4">
+                            <div>
+                                <h3 class="text-2xl font-bold text-gray-800">${companyProfile.companyName || 'Company Name Not Set'}</h3>
+                                <p class="text-gray-600">${companyProfile.companyIndustry || 'Industry not specified'}</p>
+                            </div>
+                            <button onclick="editProfile()" class="edit-btn">
+                                <i class="fas fa-edit mr-2"></i> Edit Profile
+                            </button>
+                        </div>
+                        <div class="space-y-2 text-gray-700">
+                            <div>
+                                <i class="fas fa-user mr-2 text-primary-purple"></i>
+                                <span>${companyProfile.firstName} ${companyProfile.lastName}</span>
+                            </div>
+                            <div>
+                                <i class="fas fa-envelope mr-2 text-primary-purple"></i>
+                                <span>${companyProfile.email}</span>
+                            </div>
+                            <div>
+                                <i class="fas fa-phone mr-2 text-primary-purple"></i>
+                                <span>${companyProfile.phoneNumber || 'Not provided'}</span>
+                            </div>
+                            ${companyProfile.companyWebsite ? `
+                                <div>
+                                    <i class="fas fa-globe mr-2 text-primary-purple"></i>
+                                    <a href="${companyProfile.companyWebsite}" target="_blank" class="text-primary-purple hover:underline">${companyProfile.companyWebsite}</a>
+                                </div>
+                            ` : ''}
+                            ${companyProfile.companySize ? `
+                                <div>
+                                    <i class="fas fa-users mr-2 text-primary-purple"></i>
+                                    <span>${companyProfile.companySize} employees</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Company Description -->
+            ${companyProfile.companyDescription ? `
+                <div class="profile-section">
+                    <h4 class="text-xl font-bold text-gray-800 mb-3">
+                        <i class="fas fa-info-circle text-primary-purple mr-2"></i>
+                        About Company
+                    </h4>
+                    <p class="text-gray-700 whitespace-pre-wrap">${companyProfile.companyDescription}</p>
+                </div>
+            ` : ''}
+
+            <!-- Company Location -->
+            <div class="profile-section">
+                <h4 class="text-xl font-bold text-gray-800 mb-3">
+                    <i class="fas fa-map-marker-alt text-primary-purple mr-2"></i>
+                    Company Location
+                </h4>
+                ${companyProfile.companyLatitude && companyProfile.companyLongitude ? `
+                    <p class="text-gray-700 mb-3">
+                        <i class="fas fa-location-dot mr-2"></i>
+                        ${companyProfile.companyAddress || 'Address not specified'}
+                    </p>
+                    <div id="companyMap" style="height: 400px; border-radius: 8px;"></div>
+                ` : `
+                    <p class="text-gray-600">No location set. Click "Edit Profile" to add your company location.</p>
+                `}
+            </div>
+        `;
+
+        // Initialize map if location exists
+        if (companyProfile.companyLatitude && companyProfile.companyLongitude) {
+            initializeCompanyMap();
+        }
+    }
+
+    function initializeCompanyMap() {
+        const map = new mapboxgl.Map({
+            container: 'companyMap',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [companyProfile.companyLongitude, companyProfile.companyLatitude],
+            zoom: 14
+        });
+
+        map.addControl(new mapboxgl.NavigationControl());
+
+        // Add marker
+        new mapboxgl.Marker({ color: '#1C2B53' })
+            .setLngLat([companyProfile.companyLongitude, companyProfile.companyLatitude])
+            .setPopup(new mapboxgl.Popup().setHTML(`
+                <div class="p-2">
+                    <h4 class="font-bold">${companyProfile.companyName || 'Company Location'}</h4>
+                    <p class="text-sm">${companyProfile.companyAddress || ''}</p>
+                </div>
+            `))
+            .addTo(map);
+    }
+
+    function editProfile() {
+        Swal.fire({
+            title: 'Edit Company Profile',
+            html: `
+                <div class="text-left space-y-4 max-h-96 overflow-y-auto">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">First Name *</label>
+                            <input type="text" id="firstName" value="${companyProfile.firstName}" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Last Name *</label>
+                            <input type="text" id="lastName" value="${companyProfile.lastName}" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+                        <input type="tel" id="phoneNumber" value="${companyProfile.phoneNumber || ''}" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Company Name *</label>
+                        <input type="text" id="companyName" value="${companyProfile.companyName || ''}" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Industry</label>
+                        <select id="companyIndustry" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">Select Industry</option>
+                            <option value="Technology" ${companyProfile.companyIndustry === 'Technology' ? 'selected' : ''}>Technology</option>
+                            <option value="Healthcare" ${companyProfile.companyIndustry === 'Healthcare' ? 'selected' : ''}>Healthcare</option>
+                            <option value="Finance" ${companyProfile.companyIndustry === 'Finance' ? 'selected' : ''}>Finance</option>
+                            <option value="Education" ${companyProfile.companyIndustry === 'Education' ? 'selected' : ''}>Education</option>
+                            <option value="Retail" ${companyProfile.companyIndustry === 'Retail' ? 'selected' : ''}>Retail</option>
+                            <option value="Manufacturing" ${companyProfile.companyIndustry === 'Manufacturing' ? 'selected' : ''}>Manufacturing</option>
+                            <option value="Construction" ${companyProfile.companyIndustry === 'Construction' ? 'selected' : ''}>Construction</option>
+                            <option value="Hospitality" ${companyProfile.companyIndustry === 'Hospitality' ? 'selected' : ''}>Hospitality</option>
+                            <option value="Other" ${companyProfile.companyIndustry === 'Other' ? 'selected' : ''}>Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Company Size</label>
+                        <select id="companySize" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">Select Size</option>
+                            <option value="1-10" ${companyProfile.companySize === '1-10' ? 'selected' : ''}>1-10</option>
+                            <option value="11-50" ${companyProfile.companySize === '11-50' ? 'selected' : ''}>11-50</option>
+                            <option value="51-200" ${companyProfile.companySize === '51-200' ? 'selected' : ''}>51-200</option>
+                            <option value="201-500" ${companyProfile.companySize === '201-500' ? 'selected' : ''}>201-500</option>
+                            <option value="501-1000" ${companyProfile.companySize === '501-1000' ? 'selected' : ''}>501-1000</option>
+                            <option value="1000+" ${companyProfile.companySize === '1000+' ? 'selected' : ''}>1000+</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Website</label>
+                        <input type="url" id="companyWebsite" value="${companyProfile.companyWebsite || ''}" placeholder="https://example.com" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Company Description</label>
+                        <textarea id="companyDescription" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">${companyProfile.companyDescription || ''}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Company Location</label>
+                        <div id="geocoder" class="mb-2"></div>
+                        <div id="editMap" style="height: 300px; border-radius: 8px;"></div>
+                        <input type="hidden" id="companyAddress" value="${companyProfile.companyAddress || ''}">
+                        <input type="hidden" id="companyLatitude" value="${companyProfile.companyLatitude || ''}">
+                        <input type="hidden" id="companyLongitude" value="${companyProfile.companyLongitude || ''}">
+                    </div>
+                </div>
+            `,
+            width: '700px',
+            showCancelButton: true,
+            confirmButtonText: 'Save Changes',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#1C2B53',
+            cancelButtonColor: '#6B7280',
+            didOpen: () => {
+                initializeEditMap();
+            },
+            preConfirm: () => {
+                const firstName = document.getElementById('firstName').value;
+                const lastName = document.getElementById('lastName').value;
+                const phoneNumber = document.getElementById('phoneNumber').value;
+                const companyName = document.getElementById('companyName').value;
+                const companyIndustry = document.getElementById('companyIndustry').value;
+                const companySize = document.getElementById('companySize').value;
+                const companyWebsite = document.getElementById('companyWebsite').value;
+                const companyDescription = document.getElementById('companyDescription').value;
+                const companyAddress = document.getElementById('companyAddress').value;
+                const companyLatitude = document.getElementById('companyLatitude').value;
+                const companyLongitude = document.getElementById('companyLongitude').value;
+                
+                if (!firstName || !lastName || !companyName) {
+                    Swal.showValidationMessage('First name, last name, and company name are required');
+                    return false;
+                }
+                
+                return {
+                    firstName,
+                    lastName,
+                    phoneNumber,
+                    companyName,
+                    companyIndustry,
+                    companySize,
+                    companyWebsite,
+                    companyDescription,
+                    companyAddress,
+                    companyLatitude: companyLatitude ? parseFloat(companyLatitude) : null,
+                    companyLongitude: companyLongitude ? parseFloat(companyLongitude) : null
+                };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                saveProfile(result.value);
+            }
+        });
+    }
+
+    function initializeEditMap() {
+        const initialLat = companyProfile.companyLatitude || 10.5288236;
+        const initialLng = companyProfile.companyLongitude || 122.8425853;
+
+        const map = new mapboxgl.Map({
+            container: 'editMap',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [initialLng, initialLat],
+            zoom: 12
+        });
+
+        map.addControl(new mapboxgl.NavigationControl());
+
+        let marker = new mapboxgl.Marker({ color: '#1C2B53', draggable: true })
+            .setLngLat([initialLng, initialLat])
+            .addTo(map);
+
+        // Update coordinates when marker is dragged
+        marker.on('dragend', () => {
+            const lngLat = marker.getLngLat();
+            document.getElementById('companyLatitude').value = lngLat.lat;
+            document.getElementById('companyLongitude').value = lngLat.lng;
+            
+            // Reverse geocode to get address
+            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lngLat.lng},${lngLat.lat}.json?access_token=${mapboxgl.accessToken}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.features && data.features.length > 0) {
+                        document.getElementById('companyAddress').value = data.features[0].place_name;
+                    }
+                });
+        });
+
+        // Click on map to set marker location
+        map.on('click', (e) => {
+            const coords = e.lngLat;
+            marker.setLngLat([coords.lng, coords.lat]);
+            
+            document.getElementById('companyLatitude').value = coords.lat;
+            document.getElementById('companyLongitude').value = coords.lng;
+            
+            // Reverse geocode to get address
+            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords.lng},${coords.lat}.json?access_token=${mapboxgl.accessToken}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.features && data.features.length > 0) {
+                        document.getElementById('companyAddress').value = data.features[0].place_name;
+                    }
+                });
+        });
+
+        // Add geocoder
+        const geocoder = new MapboxGeocoder({
+            accessToken: mapboxgl.accessToken,
+            mapboxgl: mapboxgl,
+            marker: false,
+            placeholder: 'Search for company location'
+        });
+
+        document.getElementById('geocoder').appendChild(geocoder.onAdd(map));
+
+        geocoder.on('result', (e) => {
+            const coords = e.result.geometry.coordinates;
+            marker.setLngLat(coords);
+            map.flyTo({ center: coords, zoom: 14 });
+            
+            document.getElementById('companyAddress').value = e.result.place_name;
+            document.getElementById('companyLatitude').value = coords[1];
+            document.getElementById('companyLongitude').value = coords[0];
+        });
+    }
+
+    async function saveProfile(data) {
+        try {
+            const response = await fetch('/api/company/update', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) throw new Error('Failed to update profile');
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Profile Updated!',
+                text: 'Your company profile has been updated successfully.',
+                confirmButtonColor: '#1C2B53'
+            });
+
+            loadProfile();
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to update profile. Please try again.',
+                confirmButtonColor: '#1C2B53'
+            });
+        }
+    }
+
+    async function changeLogo() {
+        const { value: file } = await Swal.fire({
+            title: 'Upload Company Logo',
+            input: 'file',
+            inputAttributes: {
+                'accept': 'image/*',
+                'aria-label': 'Upload your company logo'
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Upload',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#1C2B53',
+            cancelButtonColor: '#6B7280'
+        });
+
+        if (file) {
+            const formData = new FormData();
+            formData.append('logo', file);
+
+            try {
+                const response = await fetch('/api/company/upload-logo', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Failed to upload logo');
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Logo Uploaded!',
+                    text: 'Your company logo has been updated.',
+                    confirmButtonColor: '#1C2B53'
+                });
+
+                loadProfile();
+            } catch (error) {
+                console.error('Error uploading logo:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Failed to upload logo. Please try again.',
+                    confirmButtonColor: '#1C2B53'
+                });
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadProfile);
+</script>

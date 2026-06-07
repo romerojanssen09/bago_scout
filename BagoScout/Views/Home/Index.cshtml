@@ -1,0 +1,490 @@
+@{
+    ViewData["Title"] = "Home";
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BagoScout - Job Portal for Employers and Job Seekers</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="~/css/auth-modal.css" asp-append-version="true" />
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-purple': '#6C63FF',
+                        'dark-navy': '#1C2B53',
+                        'medium-gray': '#8D94A8',
+                        'light-bg': '#F0F4FF',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            padding-top: 80px; /* Add padding to prevent content from hiding under fixed nav */
+        }
+        
+        @@media (max-width: 768px) {
+            body {
+                padding-top: 70px;
+            }
+        }
+        
+        .mobile-menu {
+            display: none;
+        }
+        .mobile-menu.active {
+            display: block;
+        }
+        
+        /* Ensure no horizontal overflow but allow vertical for sticky */
+        html {
+            overflow-x: hidden;
+            max-width: 100vw;
+        }
+        
+        body {
+            overflow-x: hidden;
+            max-width: 100vw;
+            position: relative;
+        }
+        
+        * {
+            box-sizing: border-box;
+        }
+        
+        /* Ensure cards are visible before animation */
+        .feature-card,
+        .contact-card {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* FIXED nav - guaranteed to work */
+        .landing-nav {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 9999 !important;
+            width: 100% !important;
+            background: white !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Ensure SweetAlert2 container sits on top of all modal overlays */
+        .swal2-container {
+            z-index: 99999 !important;
+        }
+    </style>
+</head>
+<body class="max-w-full" style="overflow-x: hidden;">
+    <!-- Navigation -->
+    <nav class="landing-nav bg-white shadow-sm">
+        <div class="mx-auto px-4 lg:px-16 py-4 md:py-6 flex justify-between items-center max-w-full">
+            <a href="#" class="logo flex items-center">
+                <img src="~/imgs/logo.png" alt="BagoScout Logo" class="h-8 md:h-10" />
+            </a>
+            
+            <!-- Mobile Menu Button -->
+            <button class="mobile-menu-btn md:hidden text-dark-navy text-2xl" onclick="toggleMobileMenu()">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <!-- Desktop Navigation -->
+            <ul class="nav-links hidden md:flex gap-6 lg:gap-10 items-center">
+                <li><a href="#home" class="text-dark-navy font-medium hover:text-primary-purple transition-colors text-sm lg:text-base">Home</a></li>
+                <li><a href="#about" class="text-dark-navy font-medium hover:text-primary-purple transition-colors text-sm lg:text-base">About</a></li>
+                <li><a href="#contact" class="text-dark-navy font-medium hover:text-primary-purple transition-colors text-sm lg:text-base">Contact</a></li>
+            </ul>
+            
+            <div class="nav-buttons hidden md:flex gap-3 lg:gap-4">
+                <a href="#" onclick="openLoginModal(); return false;" class="btn-login bg-dark-navy text-white px-4 lg:px-8 py-2 lg:py-3 rounded-lg font-medium hover:bg-primary-purple transition-all text-sm lg:text-base">Log in</a>
+                <a href="/Home/Register" class="btn-create bg-white text-dark-navy px-4 lg:px-8 py-2 lg:py-3 rounded-lg font-medium border-2 border-dark-navy hover:bg-dark-navy hover:text-white transition-all text-sm lg:text-base">Create an account</a>
+            </div>
+        </div>
+        
+        <!-- Mobile Menu -->
+        <div class="mobile-menu bg-white border-t border-gray-200 px-4 pb-4">
+            <ul class="flex flex-col gap-4 pt-4">
+                <li><a href="#home" class="text-dark-navy font-medium hover:text-primary-purple transition-colors block py-2">Home</a></li>
+                <li><a href="#about" class="text-dark-navy font-medium hover:text-primary-purple transition-colors block py-2">About</a></li>
+                <li><a href="#contact" class="text-dark-navy font-medium hover:text-primary-purple transition-colors block py-2">Contact</a></li>
+                <li class="flex flex-col gap-3 pt-4 border-t border-gray-200">
+                    <a href="#" onclick="openLoginModal(); return false;" class="btn-login bg-dark-navy text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-purple transition-all text-center">Log in</a>
+                    <a href="/Home/Register" class="btn-create bg-white text-dark-navy px-6 py-3 rounded-lg font-medium border-2 border-dark-navy hover:bg-dark-navy hover:text-white transition-all text-center">Create an account</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <script>
+        function toggleMobileMenu() {
+            const menu = document.querySelector('.mobile-menu');
+            const btn = document.querySelector('.mobile-menu-btn i');
+            menu.classList.toggle('active');
+            btn.classList.toggle('fa-bars');
+            btn.classList.toggle('fa-times');
+        }
+        
+        // Close mobile menu when clicking on a link
+        document.querySelectorAll('.mobile-menu a').forEach(link => {
+            link.addEventListener('click', () => {
+                const menu = document.querySelector('.mobile-menu');
+                const btn = document.querySelector('.mobile-menu-btn i');
+                menu.classList.remove('active');
+                btn.classList.add('fa-bars');
+                btn.classList.remove('fa-times');
+            });
+        });
+    </script>
+
+    <!-- Hero Section -->
+    <section class="hero-section bg-white pt-2 pb-12 md:pt-4 md:pb-20 min-h-screen flex items-center" id="home" style="overflow-x: hidden;">
+        <div class="hero-container mx-auto px-4 lg:px-16 grid lg:grid-cols-2 gap-8 md:gap-16 items-center w-full max-w-full">
+            <div class="hero-content">
+                <h1 class="hero-title text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-4 md:mb-6 text-dark-navy">
+                    A <span class="highlight text-primary-purple">Job Portal</span> for Employers and Job Seekers.
+                </h1>
+                <p class="hero-description text-medium-gray text-base md:text-lg leading-relaxed mb-6 md:mb-8 max-w-2xl">
+                    Bago Scout is a platform tailored to optimize your job seeking & hiring experience with the use of Geospatial Feature, Smart Recommendations, and more.
+                </p>
+                
+                <div class="search-box flex flex-col sm:flex-row gap-4 mb-8 md:mb-16 items-stretch w-full">
+                    <a href="/Home/Register" class="btn-get-started bg-dark-navy text-white px-8 md:px-12 py-4 md:py-5 rounded-2xl font-semibold text-base md:text-lg hover:bg-primary-purple transition-all whitespace-nowrap shadow-lg w-full sm:w-auto text-center">
+                        Get Started
+                    </a>
+                    <div class="search-inputs-wrapper flex-1 w-full flex flex-col sm:flex-row gap-0 border-2 border-gray-300 rounded-2xl overflow-hidden bg-white shadow-md relative">
+                        <div class="input-wrapper relative flex-1 flex items-center min-w-0">
+                            <i class="fas fa-search absolute left-4 md:left-5 text-medium-gray text-base md:text-lg"></i>
+                            <input type="text" class="search-input w-full pl-12 md:pl-14 pr-4 py-4 md:py-5 border-0 text-sm md:text-base bg-transparent focus:outline-none placeholder-medium-gray" placeholder="Job name">
+                        </div>
+                        <div class="hidden sm:block absolute left-1/2 top-5 bottom-5 w-0.5 bg-gray-300 transform -translate-x-1/2"></div>
+                        <div class="block sm:hidden w-full h-0.5 bg-gray-300"></div>
+                        <div class="input-wrapper relative flex-1 flex items-center min-w-0">
+                            <i class="fas fa-map-marker-alt absolute left-4 md:left-5 text-dark-navy text-base md:text-lg"></i>
+                            <input type="text" class="search-input w-full pl-12 md:pl-14 pr-4 py-4 md:py-5 border-0 text-sm md:text-base bg-transparent focus:outline-none placeholder-medium-gray" placeholder="Location">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hero-features grid sm:grid-cols-2 gap-6 md:gap-x-20 md:gap-y-8 w-full relative">
+                    <div class="feature-item flex gap-4 md:gap-5 items-center min-w-0">
+                        <i class="fas fa-search text-dark-navy text-2xl md:text-4xl flex-shrink-0"></i>
+                        <div class="text-left min-w-0">
+                            <h3 class="text-base md:text-xl font-bold mb-2 md:mb-3 text-dark-navy">Find Quick Job Offers</h3>
+                            <p class="text-medium-gray text-sm md:text-base leading-relaxed">Search for available jobs in your local area.</p>
+                        </div>
+                    </div>
+                    <div class="hidden sm:block absolute left-1/2 top-5 bottom-5 w-px bg-gray-300"></div>
+                    <div class="feature-item flex gap-4 md:gap-5 items-center min-w-0">
+                        <i class="fas fa-map-marker-alt text-dark-navy text-2xl md:text-4xl flex-shrink-0"></i>
+                        <div class="text-left min-w-0">
+                            <h3 class="text-base md:text-xl font-bold mb-2 md:mb-3 text-dark-navy">A Job Portal for Locals</h3>
+                            <p class="text-medium-gray text-sm md:text-base leading-relaxed">Tailored for the residents of Bago City.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hero-image mt-8 lg:mt-0">
+                <img src="~/imgs/landing-img.png" alt="Job Portal Illustration" class="w-full h-auto" />
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features-section bg-white py-12 md:py-20 text-center min-h-screen flex flex-col justify-center">
+        <div class="section-label text-medium-gray uppercase tracking-widest text-xs md:text-sm mb-3 md:mb-4">FEATURES</div>
+        <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-dark-navy mb-10 md:mb-16 px-4">Why Choose Us?</h2>
+        
+        <div class="features-grid mx-auto px-4 lg:px-16 grid sm:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
+            <div class="feature-card bg-white p-6 md:p-10 rounded-xl shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between">
+                <div>
+                    <img src="~/imgs/Vast Job Listings.png" alt="Vast Job Listings" class="w-48 md:w-56 lg:w-64 h-auto mx-auto mb-4 md:mb-6" />
+                    <h3 class="text-lg md:text-xl font-semibold text-dark-navy mb-3 md:mb-4">Vast Job Listings</h3>
+                    <p class="text-medium-gray text-sm md:text-base leading-relaxed">Our platform hosts a wide range of job opportunities with a strong focus on local jobs.</p>
+                </div>
+            </div>
+            
+            <div class="feature-card bg-white p-6 md:p-10 rounded-xl shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between">
+                <div>
+                    <img src="~/imgs/Chatting.png" alt="Chat Features" class="w-48 md:w-56 lg:w-64 h-auto mx-auto mb-4 md:mb-6" />
+                    <h3 class="text-lg md:text-xl font-semibold text-dark-navy mb-3 md:mb-4">Chat Features</h3>
+                    <p class="text-medium-gray text-sm md:text-base leading-relaxed">Direct messaging between job seekers and recruiters/employers to discuss roles, expectations, interviews, and more.</p>
+                </div>
+            </div>
+            
+            <div class="feature-card bg-white p-6 md:p-10 rounded-xl shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between">
+                <div>
+                    <img src="~/imgs/map.png" alt="Map Integration" class="w-48 md:w-56 lg:w-64 h-auto mx-auto mb-4 md:mb-6" />
+                    <h3 class="text-lg md:text-xl font-semibold text-dark-navy mb-3 md:mb-4">Map Integration</h3>
+                    <p class="text-medium-gray text-sm md:text-base leading-relaxed">Interactive maps display nearby job opportunities, helping users visualize their commute times or proximity to various roles.</p>
+                </div>
+            </div>
+
+            <div class="feature-card bg-white p-6 md:p-10 rounded-xl shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between">
+                <div>
+                    <img src="~/imgs/hand-mobile.png" alt="Available on Mobile" class="w-48 md:w-56 lg:w-64 h-auto mx-auto mb-4 md:mb-6" />
+                    <h3 class="text-lg md:text-xl font-semibold text-dark-navy mb-3 md:mb-4">Available on Mobile</h3>
+                    <p class="text-medium-gray text-sm md:text-base leading-relaxed mb-6">Take BagoScout with you on the go! Search jobs, chat with employers, and receive push notifications.</p>
+                </div>
+                <div class="mt-4">
+                    <a href="/downloads/BagoScout.apk" download class="btn-download inline-flex items-center justify-center gap-2 bg-primary-purple text-white w-full px-6 py-3 rounded-lg font-medium hover:bg-dark-navy transition-all shadow-md">
+                        <i class="fab fa-android text-xl"></i>
+                        <span>Download APK</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Mission & Vision Section -->
+    <section class="mission-vision-section bg-white py-12 md:py-20 min-h-screen flex items-center" id="about">
+        <div class="mission-vision-container mx-auto px-4 lg:px-16 w-full space-y-12 md:space-y-20">
+            <div class="mission-item grid lg:grid-cols-[1fr_2fr] gap-6 md:gap-12 items-center">
+                <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-dark-navy">Our Mission</h2>
+                <div class="mission-content relative pl-6 md:pl-8 border-l-4 border-dark-navy">
+                    <p class="text-medium-gray text-base md:text-lg leading-relaxed">
+                        Our mission is to empower job seekers by providing a user-friendly platform where they can explore exciting career opportunities, create professional profiles, and connect directly with employers. We believe that the right job can transform lives, and we are committed to helping individuals and companies find their perfect match.
+                    </p>
+                </div>
+            </div>
+
+            <div class="vision-item grid lg:grid-cols-[1fr_2fr] gap-6 md:gap-12 items-center">
+                <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-dark-navy">Our Vision</h2>
+                <div class="vision-content relative pl-6 md:pl-8 border-l-4 border-dark-navy">
+                    <p class="text-medium-gray text-base md:text-lg leading-relaxed">
+                        We envision a world where finding meaningful work is easier than ever. By leveraging technology, we strive to make the recruitment process more transparent, inclusive, and accessible to job seekers from all backgrounds.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section class="contact-section bg-white py-12 md:py-20 text-center min-h-screen flex flex-col justify-center" id="contact">
+        <div class="section-label text-medium-gray uppercase tracking-widest text-xs md:text-sm mb-3 md:mb-4">CONTACTS</div>
+        <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-dark-navy mb-10 md:mb-16 px-4">Let's Stay Connected</h2>
+        
+        <div class="contact-grid mx-auto px-4 lg:px-16 grid sm:grid-cols-2 md:grid-cols-3 gap-8 md:gap-10 lg:gap-12 mb-8 md:mb-16 max-w-6xl w-full">
+            <!-- Email Card -->
+            <a href="mailto:BagoScout@gmail.com" class="contact-card group bg-white p-8 md:p-10 rounded-2xl border-2 border-transparent hover:border-primary-purple shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 flex flex-col justify-between items-center text-center">
+                <div class="flex flex-col items-center">
+                    <div class="icon w-20 h-20 bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white rounded-2xl flex items-center justify-center mb-6 transition-all duration-300 shadow-md">
+                        <i class="fas fa-envelope text-3xl"></i>
+                    </div>
+                    <h3 class="text-xl md:text-2xl font-bold text-dark-navy mb-3">Send a mail</h3>
+                    <p class="text-medium-gray text-sm md:text-base mb-4">Have questions? Send us an email and we'll reply as soon as possible.</p>
+                </div>
+                <div class="w-full">
+                    <p class="text-primary-purple font-semibold text-base md:text-lg break-all">BagoScout@gmail.com</p>
+                    <span class="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-indigo-500 group-hover:text-indigo-600 transition-colors">
+                        Click to compose <i class="fas fa-chevron-right text-[10px] ml-1"></i>
+                    </span>
+                </div>
+            </a>
+            
+            <!-- Phone Card -->
+            <a href="tel:09564186361" class="contact-card group bg-white p-8 md:p-10 rounded-2xl border-2 border-transparent hover:border-primary-purple shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 flex flex-col justify-between items-center text-center">
+                <div class="flex flex-col items-center">
+                    <div class="icon w-20 h-20 bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white rounded-2xl flex items-center justify-center mb-6 transition-all duration-300 shadow-md">
+                        <i class="fas fa-phone text-3xl"></i>
+                    </div>
+                    <h3 class="text-xl md:text-2xl font-bold text-dark-navy mb-3">Call us</h3>
+                    <p class="text-medium-gray text-sm md:text-base mb-4">Want to talk over the phone? Give us a call during working hours.</p>
+                </div>
+                <div class="w-full">
+                    <p class="text-primary-purple font-semibold text-base md:text-lg break-all">09564186361</p>
+                    <span class="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-emerald-500 group-hover:text-emerald-600 transition-colors">
+                        Click to call <i class="fas fa-chevron-right text-[10px] ml-1"></i>
+                    </span>
+                </div>
+            </a>
+            
+            <!-- LinkedIn Card -->
+            <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" class="contact-card group bg-white p-8 md:p-10 rounded-2xl border-2 border-transparent hover:border-primary-purple shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 flex flex-col justify-between items-center text-center sm:col-span-2 md:col-span-1">
+                <div class="flex flex-col items-center">
+                    <div class="icon w-20 h-20 bg-sky-50 text-sky-600 group-hover:bg-sky-600 group-hover:text-white rounded-2xl flex items-center justify-center mb-6 transition-all duration-300 shadow-md">
+                        <i class="fab fa-linkedin text-3xl"></i>
+                    </div>
+                    <h3 class="text-xl md:text-2xl font-bold text-dark-navy mb-3">LinkedIn</h3>
+                    <p class="text-medium-gray text-sm md:text-base mb-4">Connect with our company profile on LinkedIn for updates and announcements.</p>
+                </div>
+                <div class="w-full">
+                    <p class="text-primary-purple font-semibold text-base md:text-lg break-all">BagoScout</p>
+                    <span class="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-sky-500 group-hover:text-sky-600 transition-colors">
+                        Click to connect <i class="fas fa-chevron-right text-[10px] ml-1"></i>
+                    </span>
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <!-- Message Form Section -->
+    <section class="message-section bg-white py-12 md:py-20 min-h-screen flex flex-col justify-center">
+        <div class="section-label text-center text-medium-gray uppercase tracking-widest text-xs md:text-sm mb-3 md:mb-4">MESSAGE US</div>
+        <h2 class="text-center text-3xl md:text-4xl lg:text-5xl font-bold text-dark-navy mb-8 md:mb-12 px-4">We'll Get to You First</h2>
+        
+        <form class="message-form max-w-5xl mx-auto px-4 lg:px-16 w-full">
+            <div class="form-row grid md:grid-cols-2 gap-6 md:gap-8 mb-6 md:mb-8">
+                <div class="form-group flex flex-col">
+                    <label class="text-medium-gray mb-2 font-medium text-sm md:text-base">First name</label>
+                    <input type="text" placeholder="first name" class="px-4 py-3 md:py-4 border border-gray-300 rounded-lg text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-primary-purple" />
+                </div>
+                <div class="form-group flex flex-col">
+                    <label class="text-medium-gray mb-2 font-medium text-sm md:text-base">Last name</label>
+                    <input type="text" placeholder="last name" class="px-4 py-3 md:py-4 border border-gray-300 rounded-lg text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-primary-purple" />
+                </div>
+            </div>
+            
+            <div class="form-group flex flex-col mb-6 md:mb-8">
+                <label class="text-medium-gray mb-2 font-medium text-sm md:text-base">Email</label>
+                <input type="email" placeholder="Your email" class="px-4 py-3 md:py-4 border border-gray-300 rounded-lg text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-primary-purple" />
+            </div>
+            
+            <div class="form-group flex flex-col mb-6 md:mb-8">
+                <label class="text-medium-gray mb-2 font-medium text-sm md:text-base">Phone number</label>
+                <input type="tel" placeholder="+63" class="px-4 py-3 md:py-4 border border-gray-300 rounded-lg text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-primary-purple" />
+            </div>
+            
+            <div class="form-group flex flex-col mb-6 md:mb-8">
+                <label class="text-medium-gray mb-2 font-medium text-sm md:text-base">Message</label>
+                <textarea placeholder="Write a message" class="px-4 py-3 md:py-4 border border-gray-300 rounded-lg text-sm md:text-base min-h-[150px] md:min-h-[200px] resize-y focus:outline-none focus:ring-2 focus:ring-primary-purple"></textarea>
+            </div>
+            
+            <button type="submit" class="btn-submit bg-dark-navy text-white px-10 md:px-12 py-3 md:py-4 rounded-lg font-semibold text-sm md:text-base mx-auto block mt-6 md:mt-8 hover:bg-primary-purple transition-all w-full sm:w-auto">
+                Send message
+            </button>
+        </form>
+    </section>
+
+    <!-- Footer -->
+    <footer class="landing-footer bg-dark-navy text-white py-8 md:py-12">
+        <div class="footer-container max-w-7xl mx-auto px-4 lg:px-16 grid sm:grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 mb-6 md:mb-8">
+            <div class="footer-column">
+                <h3 class="text-lg md:text-xl font-semibold mb-4 md:mb-6">Company</h3>
+                <ul class="space-y-2 md:space-y-3">
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">About Us</a></li>
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Our Services</a></li>
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Privacy Policy</a></li>
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Affiliate Program</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-column">
+                <h3 class="text-lg md:text-xl font-semibold mb-4 md:mb-6">Get Help</h3>
+                <ul class="space-y-2 md:space-y-3">
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">FAQ</a></li>
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Applying</a></li>
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Marking</a></li>
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Job Status</a></li>
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Employment</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-column">
+                <h3 class="text-lg md:text-xl font-semibold mb-4 md:mb-6">Online Job Portal</h3>
+                <ul class="space-y-2 md:space-y-3">
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Job Seeking</a></li>
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Employing</a></li>
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Contracting</a></li>
+                    <li><a href="#" class="text-medium-gray hover:text-white transition-colors text-sm md:text-base">Work Status</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-column">
+                <h3 class="text-lg md:text-xl font-semibold mb-4 md:mb-6">Follow Us</h3>
+                <div class="social-links flex gap-3 md:gap-4 mb-6 md:mb-8">
+                    <a href="#" class="w-9 h-9 md:w-10 md:h-10 bg-white bg-opacity-10 rounded-full flex items-center justify-center text-white hover:bg-primary-purple transition-all">
+                        <i class="fab fa-facebook-f text-sm md:text-base"></i>
+                    </a>
+                    <a href="#" class="w-9 h-9 md:w-10 md:h-10 bg-white bg-opacity-10 rounded-full flex items-center justify-center text-white hover:bg-primary-purple transition-all">
+                        <i class="fab fa-twitter text-sm md:text-base"></i>
+                    </a>
+                    <a href="#" class="w-9 h-9 md:w-10 md:h-10 bg-white bg-opacity-10 rounded-full flex items-center justify-center text-white hover:bg-primary-purple transition-all">
+                        <i class="fab fa-instagram text-sm md:text-base"></i>
+                    </a>
+                    <a href="#" class="w-9 h-9 md:w-10 md:h-10 bg-white bg-opacity-10 rounded-full flex items-center justify-center text-white hover:bg-primary-purple transition-all">
+                        <i class="fab fa-linkedin-in text-sm md:text-base"></i>
+                    </a>
+                </div>
+                <p class="text-medium-gray text-xs md:text-sm">© Copyright 2024 BagoScout. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- GSAP Animation Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="~/js/landing-animations.js"></script>
+    <script src="~/js/auth-modal.js"></script>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal-overlay">
+        <div class="modal-container">
+            <!-- Left Side - Illustration -->
+            <div class="modal-illustration">
+                <img src="~/imgs/programming.png" alt="Programming Illustration" class="modal-illustration-image" />
+            </div>
+            
+            <!-- Right Side - Login Form -->
+            <div class="modal-content">
+                <button class="modal-close" onclick="closeLoginModal()"><i class="fas fa-times"></i></button>
+                
+                <div class="modal-header">
+                    <h2>Welcome</h2>
+                    <p>Log in to your account or create an account.</p>
+                </div>
+                
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <div class="form-input-icon">
+                            <i class="fas fa-user"></i>
+                            <input type="text" id="loginEmail" class="form-input" placeholder="username" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group password-field-wrapper">
+                        <label>Password</label>
+                        <div class="password-wrapper form-input-icon">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="loginPassword" class="form-input" placeholder="password" required>
+                            <button type="button" class="password-toggle" onclick="togglePassword('loginPassword')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="password-actions">
+                        <div class="checkbox-wrapper" style="margin: 0;">
+                            <input type="checkbox" id="keepLoggedIn">
+                            <label for="keepLoggedIn">keep me logged in</label>
+                        </div>
+                        <div class="forgot-password" style="margin: 0;">
+                            <a href="/Home/ForgotPassword">forgot password?</a>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">Log in</button>
+                </form>
+                
+                <div class="divider">or</div>
+                
+                <a href="/Home/Register" class="btn-secondary">Create an account</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,926 @@
+@{
+    @using Microsoft.Extensions.Configuration
+    @inject IConfiguration Configuration
+
+    ViewData["Title"] = "Dashboard";
+    ViewData["ActivePage"] = "Dashboard";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
+
+<style>
+    .stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        transition: all 0.3s;
+    }
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    .job-card {
+        background: white;
+        border: 2px solid #E5E7EB;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+        transition: all 0.3s;
+        cursor: pointer;
+    }
+    .job-card:hover {
+        border-color: #6C63FF;
+        box-shadow: 0 4px 12px rgba(108, 99, 255, 0.1);
+    }
+</style>
+
+<!-- Header -->
+<div class="mb-8">
+    <h2 class="text-3xl font-bold text-gray-800">Welcome back, @ViewBag.UserName! 👋</h2>
+    <p class="text-gray-600 mt-2">Here's what's happening with your job search today</p>
+</div>
+
+<!-- Stats Grid -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8" id="statsContainer">
+    <div class="stat-card">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm">Applications</p>
+                <h3 class="text-3xl font-bold text-gray-800 mt-2" id="applicationsCount">0</h3>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-file-alt text-blue-600 text-xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm">Pending</p>
+                <h3 class="text-3xl font-bold text-gray-800 mt-2" id="pendingCount">0</h3>
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-clock text-yellow-600 text-xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm">Reviewed</p>
+                <h3 class="text-3xl font-bold text-gray-800 mt-2" id="reviewedCount">0</h3>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-eye text-purple-600 text-xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm">Messages</p>
+                <h3 class="text-3xl font-bold text-gray-800 mt-2" id="messagesCount">0</h3>
+            </div>
+            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-envelope text-green-600 text-xl"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Job Preferences -->
+<div class="stat-card mb-8">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-gray-800">
+            <i class="fas fa-sliders-h text-primary-purple mr-2"></i>
+            Job Preferences
+        </h3>
+        <button onclick="editPreferences()" class="px-4 py-2 bg-dark-navy text-white rounded-lg font-semibold hover:bg-primary-purple transition">
+            <i class="fas fa-edit mr-2"></i> Edit Preferences
+        </button>
+    </div>
+    <div id="preferencesDisplay" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="text-center py-8 text-gray-500 col-span-3">
+            <i class="fas fa-cog text-4xl mb-3 opacity-20"></i>
+            <p>Loading preferences...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Recommended Jobs -->
+<div class="stat-card mb-8">
+    <h3 class="text-xl font-bold text-gray-800 mb-4">
+        <i class="fas fa-star text-primary-purple mr-2"></i>
+        Recommended Jobs for You
+    </h3>
+    <div id="recommendedJobsContainer">
+        <div class="text-center py-12 text-gray-500">
+            <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
+            <p>Loading recommendations...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentPreferences = null;
+
+    async function loadDashboardData() {
+        await Promise.all([
+            loadStats(),
+            loadPreferences(),
+            loadRecommendedJobs()
+        ]);
+    }
+
+    async function loadStats() {
+        try {
+            const response = await fetch('/api/applications/seeker');
+            if (!response.ok) return;
+            
+            const applications = await response.json();
+            
+            document.getElementById('applicationsCount').textContent = applications.length;
+            document.getElementById('pendingCount').textContent = applications.filter(a => a.status === 'Pending').length;
+            document.getElementById('reviewedCount').textContent = applications.filter(a => a.status === 'Reviewed').length;
+            
+            // Load messages count
+            const messagesResponse = await fetch('/api/messages/conversations');
+            if (messagesResponse.ok) {
+                const conversations = await messagesResponse.json();
+                const unreadCount = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
+                document.getElementById('messagesCount').textContent = unreadCount;
+            }
+        } catch (error) {
+            console.error('Error loading stats:', error);
+        }
+    }
+
+    async function loadPreferences() {
+        try {
+            const response = await fetch('/api/preferences/get');
+            if (!response.ok) throw new Error('Failed to fetch preferences');
+            
+            currentPreferences = await response.json();
+            
+            // Initialize selected location from preferences if available
+            if (currentPreferences.preferredLocation && !selectedPreferredLocation.address) {
+                selectedPreferredLocation.address = currentPreferences.preferredLocation;
+            }
+            if (currentPreferences.maxDistance && !selectedMaxDistance) {
+                selectedMaxDistance = currentPreferences.maxDistance;
+            }
+            
+            displayPreferences();
+        } catch (error) {
+            console.error('Error loading preferences:', error);
+            document.getElementById('preferencesDisplay').innerHTML = `
+                <div class="text-center py-8 text-gray-500 col-span-3">
+                    <i class="fas fa-exclamation-circle text-4xl mb-3 opacity-20"></i>
+                    <p>Error loading preferences</p>
+                </div>
+            `;
+        }
+    }
+
+    function displayPreferences() {
+        const container = document.getElementById('preferencesDisplay');
+        
+        const hasPreferences = currentPreferences.preferredJobType || 
+                               currentPreferences.preferredJobTitles || 
+                               currentPreferences.minSalary || 
+                               currentPreferences.preferredExperienceLevel;
+
+        if (!hasPreferences) {
+            container.innerHTML = `
+                <div class="text-center py-8 text-gray-500 col-span-3">
+                    <i class="fas fa-sliders-h text-4xl mb-3 opacity-20"></i>
+                    <p>No preferences set yet</p>
+                    <p class="text-sm mt-2">Set your job preferences to get personalized recommendations</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = `
+            ${currentPreferences.preferredJobType ? `
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-1">Job Type</p>
+                    <p class="font-semibold text-gray-800">${currentPreferences.preferredJobType}</p>
+                </div>
+            ` : ''}
+            ${currentPreferences.preferredJobTitles ? `
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-1">Job Titles</p>
+                    <p class="font-semibold text-gray-800">${currentPreferences.preferredJobTitles}</p>
+                </div>
+            ` : ''}
+            ${currentPreferences.preferredExperienceLevel ? `
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-1">Experience Level</p>
+                    <p class="font-semibold text-gray-800">${currentPreferences.preferredExperienceLevel}</p>
+                </div>
+            ` : ''}
+            ${currentPreferences.minSalary || currentPreferences.maxSalary ? `
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-1">Salary Range</p>
+                    <p class="font-semibold text-gray-800">
+                        ${currentPreferences.minSalary ? '₱' + currentPreferences.minSalary.toLocaleString() : 'Any'} - 
+                        ${currentPreferences.maxSalary ? '₱' + currentPreferences.maxSalary.toLocaleString() : 'Any'}
+                    </p>
+                </div>
+            ` : ''}
+            ${currentPreferences.preferredLocation ? `
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-1">Preferred Location</p>
+                    <p class="font-semibold text-gray-800">${currentPreferences.preferredLocation}</p>
+                </div>
+            ` : ''}
+            ${currentPreferences.maxDistance ? `
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-1">Max Distance</p>
+                    <p class="font-semibold text-gray-800">${currentPreferences.maxDistance} km</p>
+                </div>
+            ` : ''}
+        `;
+    }
+
+    let selectedPreferredLocation = {
+        lat: null,
+        lng: null,
+        address: ''
+    };
+
+    let selectedMaxDistance = null;
+
+    function editPreferences() {
+        // Initialize selected values from current preferences if not already set
+        if (!selectedPreferredLocation.address && currentPreferences?.preferredLocation) {
+            selectedPreferredLocation.address = currentPreferences.preferredLocation;
+        }
+        if (!selectedMaxDistance && currentPreferences?.maxDistance) {
+            selectedMaxDistance = currentPreferences.maxDistance;
+        }
+
+        const locationValue = selectedPreferredLocation.address || currentPreferences?.preferredLocation || '';
+        const distanceValue = selectedMaxDistance || currentPreferences?.maxDistance || '';
+
+        Swal.fire({
+            title: 'Job Preferences',
+            html: `
+                <div class="text-left space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Preferred Job Type</label>
+                        <select id="preferredJobType" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                            <option value="">Any</option>
+                            <option value="Full-time" ${currentPreferences?.preferredJobType === 'Full-time' ? 'selected' : ''}>Full-time</option>
+                            <option value="Part-time" ${currentPreferences?.preferredJobType === 'Part-time' ? 'selected' : ''}>Part-time</option>
+                            <option value="Contract" ${currentPreferences?.preferredJobType === 'Contract' ? 'selected' : ''}>Contract</option>
+                            <option value="Freelance" ${currentPreferences?.preferredJobType === 'Freelance' ? 'selected' : ''}>Freelance</option>
+                            <option value="Internship" ${currentPreferences?.preferredJobType === 'Internship' ? 'selected' : ''}>Internship</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Preferred Job Titles</label>
+                        <input type="text" id="preferredJobTitles" value="${currentPreferences?.preferredJobTitles || ''}" 
+                               placeholder="e.g., Developer, Designer, Manager (comma-separated)" 
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                        <p class="text-xs text-gray-500 mt-1">Separate multiple titles with commas</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Experience Level</label>
+                        <select id="preferredExperienceLevel" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                            <option value="">Any</option>
+                            <option value="Entry Level" ${currentPreferences?.preferredExperienceLevel === 'Entry Level' ? 'selected' : ''}>Entry Level</option>
+                            <option value="Mid Level" ${currentPreferences?.preferredExperienceLevel === 'Mid Level' ? 'selected' : ''}>Mid Level</option>
+                            <option value="Senior Level" ${currentPreferences?.preferredExperienceLevel === 'Senior Level' ? 'selected' : ''}>Senior Level</option>
+                            <option value="Executive" ${currentPreferences?.preferredExperienceLevel === 'Executive' ? 'selected' : ''}>Executive</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Min Salary (₱)</label>
+                            <input type="number" id="minSalary" value="${currentPreferences?.minSalary || ''}" 
+                                   placeholder="e.g., 20000" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Max Salary (₱)</label>
+                            <input type="number" id="maxSalary" value="${currentPreferences?.maxSalary || ''}" 
+                                   placeholder="e.g., 50000" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Preferred Location</label>
+                        <input type="text" id="preferredLocation" value="${locationValue}" 
+                               placeholder="Click to select location on map" 
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg cursor-pointer bg-gray-50"
+                               readonly
+                               onclick="openLocationPicker()">
+                        <p class="text-xs text-gray-500 mt-1">Click to mark your preferred location on the map</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Max Distance (km)</label>
+                        <input type="number" id="maxDistance" value="${distanceValue}" 
+                               placeholder="Click to set range" 
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg cursor-pointer bg-gray-50"
+                               readonly
+                               onclick="openDistanceRangePicker()">
+                        <p class="text-xs text-gray-500 mt-1">Click to adjust distance range on map</p>
+                    </div>
+                </div>
+            `,
+            width: '600px',
+            showCancelButton: true,
+            confirmButtonText: 'Save Preferences',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#1C2B53',
+            cancelButtonColor: '#6B7280',
+            preConfirm: () => {
+                return {
+                    preferredJobType: document.getElementById('preferredJobType').value,
+                    preferredJobTitles: document.getElementById('preferredJobTitles').value,
+                    preferredExperienceLevel: document.getElementById('preferredExperienceLevel').value,
+                    minSalary: document.getElementById('minSalary').value ? parseInt(document.getElementById('minSalary').value) : null,
+                    maxSalary: document.getElementById('maxSalary').value ? parseInt(document.getElementById('maxSalary').value) : null,
+                    preferredLocation: selectedPreferredLocation.address || document.getElementById('preferredLocation').value,
+                    preferredLatitude: selectedPreferredLocation.lat,
+                    preferredLongitude: selectedPreferredLocation.lng,
+                    maxDistance: selectedMaxDistance || (document.getElementById('maxDistance').value ? parseInt(document.getElementById('maxDistance').value) : null)
+                };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                savePreferences(result.value);
+            }
+        });
+    }
+
+    async function savePreferences(data) {
+        try {
+            const response = await fetch('/api/preferences/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) throw new Error('Failed to save preferences');
+
+            // Reset selected values after saving
+            selectedPreferredLocation = { lat: null, lng: null, address: '' };
+            selectedMaxDistance = null;
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Preferences Saved!',
+                text: 'Your job preferences have been updated.',
+                confirmButtonColor: '#1C2B53'
+            });
+
+            await loadPreferences();
+            await loadRecommendedJobs();
+        } catch (error) {
+            console.error('Error saving preferences:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to save preferences. Please try again.',
+                confirmButtonColor: '#1C2B53'
+            });
+        }
+    }
+
+    async function loadRecommendedJobs() {
+        try {
+            const response = await fetch('/api/preferences/recommended-jobs');
+            if (!response.ok) throw new Error('Failed to fetch jobs');
+            
+            const jobs = await response.json();
+            displayRecommendedJobs(jobs);
+        } catch (error) {
+            console.error('Error loading recommended jobs:', error);
+            document.getElementById('recommendedJobsContainer').innerHTML = `
+                <div class="text-center py-12 text-gray-500">
+                    <i class="fas fa-exclamation-circle text-4xl mb-4 opacity-20"></i>
+                    <p>Error loading recommendations</p>
+                </div>
+            `;
+        }
+    }
+
+    function displayRecommendedJobs(jobs) {
+        const container = document.getElementById('recommendedJobsContainer');
+        
+        if (!jobs || jobs.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-12 text-gray-500">
+                    <i class="fas fa-briefcase text-6xl mb-4 opacity-20"></i>
+                    <p>No matching jobs found</p>
+                    <p class="text-sm mt-2">Try adjusting your preferences or check back later</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = jobs.map(job => {
+            const postedDate = new Date(job.createdAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+
+            // Generate match badges
+            const matchBadges = job.matchedCriteria && job.matchedCriteria.length > 0 
+                ? job.matchedCriteria.map(criteria => {
+                    let badgeColor = '';
+                    let icon = '';
+                    
+                    switch(criteria) {
+                        case 'Job Type':
+                            badgeColor = 'bg-blue-100 text-blue-800';
+                            icon = 'fa-briefcase';
+                            break;
+                        case 'Experience':
+                            badgeColor = 'bg-purple-100 text-purple-800';
+                            icon = 'fa-chart-line';
+                            break;
+                        case 'Job Title':
+                            badgeColor = 'bg-green-100 text-green-800';
+                            icon = 'fa-tag';
+                            break;
+                        case 'Salary':
+                            badgeColor = 'bg-yellow-100 text-yellow-800';
+                            icon = 'fa-dollar-sign';
+                            break;
+                        case 'Location':
+                            badgeColor = 'bg-red-100 text-red-800';
+                            icon = 'fa-map-marker-alt';
+                            break;
+                        default:
+                            badgeColor = 'bg-gray-100 text-gray-800';
+                            icon = 'fa-check';
+                    }
+                    
+                    return `<span class="px-2 py-1 ${badgeColor} rounded-full text-xs font-semibold">
+                        <i class="fas ${icon} mr-1"></i>${criteria}
+                    </span>`;
+                }).join(' ')
+                : '';
+
+            const matchCount = job.matchedCriteria ? job.matchedCriteria.length : 0;
+            const matchLabel = matchCount > 0 
+                ? `<span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                    <i class="fas fa-star mr-1"></i> ${matchCount} Match${matchCount > 1 ? 'es' : ''}
+                   </span>`
+                : '';
+
+            return `
+                <div class="job-card" onclick="showJobModal(${job.jobId})">
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-briefcase text-primary-purple text-xl"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-start justify-between mb-2">
+                                <div>
+                                    <h4 class="text-lg font-bold text-gray-800 mb-1">${job.title}</h4>
+                                    <p class="text-sm text-gray-600 mb-2">${job.company}</p>
+                                </div>
+                                ${matchLabel}
+                            </div>
+                            ${matchBadges ? `<div class="flex flex-wrap gap-2 mb-3">${matchBadges}</div>` : ''}
+                            <div class="flex flex-wrap gap-3 text-sm text-gray-600">
+                                ${job.address ? `<span><i class="fas fa-map-marker-alt mr-1"></i>${job.address}</span>` : ''}
+                                ${job.jobType ? `<span><i class="fas fa-briefcase mr-1"></i>${job.jobType}</span>` : ''}
+                                ${job.experienceLevel ? `<span><i class="fas fa-chart-line mr-1"></i>${job.experienceLevel}</span>` : ''}
+                                ${job.salaryRange ? `<span><i class="fas fa-dollar-sign mr-1"></i>${job.salaryRange}</span>` : ''}
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2">Posted ${postedDate}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function showJobModal(jobId) {
+        try {
+            const response = await fetch(`/api/jobs/${jobId}`);
+            if (!response.ok) throw new Error('Failed to fetch job details');
+            
+            const job = await response.json();
+            
+            Swal.fire({
+                title: job.title,
+                html: `
+                    <div class="text-left space-y-4">
+                        <div class="flex items-center gap-2 text-gray-700">
+                            <i class="fas fa-building text-primary-purple"></i>
+                            <span class="font-semibold">${job.company}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-600">
+                            <i class="fas fa-map-marker-alt text-primary-purple"></i>
+                            <span>${job.address || 'Location not specified'}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-600">
+                            <i class="fas fa-briefcase text-primary-purple"></i>
+                            <span>${job.jobType}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-600">
+                            <i class="fas fa-chart-line text-primary-purple"></i>
+                            <span>${job.experienceLevel}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-600">
+                            <i class="fas fa-dollar-sign text-primary-purple"></i>
+                            <span>${job.salaryRange}</span>
+                        </div>
+                        <div class="border-t pt-3">
+                            <h4 class="font-bold text-gray-800 mb-2">Description</h4>
+                            <p class="text-gray-700 text-sm">${job.description}</p>
+                        </div>
+                        ${job.requirements ? `
+                            <div class="border-t pt-3">
+                                <h4 class="font-bold text-gray-800 mb-2">Requirements</h4>
+                                <p class="text-gray-700 text-sm">${job.requirements}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                `,
+                width: '600px',
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-paper-plane mr-2"></i> Apply Now',
+                cancelButtonText: 'Close',
+                confirmButtonColor: '#1C2B53',
+                cancelButtonColor: '#6B7280'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    checkProfileAndApply(jobId);
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching job details:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to load job details',
+                confirmButtonColor: '#1C2B53'
+            });
+        }
+    }
+
+    async function checkProfileAndApply(jobId) {
+        try {
+            const checkResponse = await fetch('/api/profile/check-completion');
+            const checkData = await checkResponse.json();
+            
+            if (!checkData.isComplete) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Complete Your Profile First',
+                    html: 'You need to complete your profile before applying to jobs.<br><br>Please fill in:<br>• Full Name<br>• Phone Number<br>• At least one skill',
+                    confirmButtonText: 'Go to Profile',
+                    confirmButtonColor: '#1C2B53',
+                    showCancelButton: true,
+                    cancelButtonText: 'Cancel'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = '/Profile/Index';
+                    }
+                });
+                return;
+            }
+            
+            // Profile is complete, proceed with application
+            submitApplication(jobId);
+        } catch (error) {
+            console.error('Error checking profile:', error);
+            // If check fails, still allow application
+            submitApplication(jobId);
+        }
+    }
+
+    async function submitApplication(jobId) {
+        try {
+            Swal.fire({
+                title: 'Submitting Application...',
+                text: 'Please wait',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            const response = await fetch('/api/jobs/apply', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    jobId: jobId,
+                    coverLetter: ''
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Application Submitted!',
+                    text: 'Your application has been sent to the employer. Good luck!',
+                    confirmButtonColor: '#1C2B53'
+                });
+                
+                // Reload dashboard data to update stats
+                loadDashboardData();
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Application Failed',
+                    text: result.message || 'Failed to submit application',
+                    confirmButtonColor: '#1C2B53'
+                });
+            }
+        } catch (error) {
+            console.error('Error submitting application:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'An error occurred while submitting your application',
+                confirmButtonColor: '#1C2B53'
+            });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadDashboardData);
+
+    mapboxgl.accessToken = '@Configuration["MapBox:Token"]';
+
+    function openLocationPicker() {
+        Swal.fire({
+            title: 'Select Your Preferred Location',
+            html: `
+                <div class="text-left">
+                    <p class="text-sm text-gray-600 mb-3">Click on the map to mark your preferred location</p>
+                    <div id="locationPickerMap" style="height: 400px; border-radius: 8px;"></div>
+                    <div id="selectedLocationInfo" class="mt-3 p-3 bg-gray-50 rounded-lg hidden">
+                        <p class="text-sm font-semibold text-gray-700">Selected Location:</p>
+                        <p id="selectedLocationText" class="text-sm text-gray-600"></p>
+                    </div>
+                </div>
+            `,
+            width: '700px',
+            showCancelButton: true,
+            confirmButtonText: 'Use This Location',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#1C2B53',
+            cancelButtonColor: '#6B7280',
+            didOpen: () => {
+                initializeLocationPicker();
+            },
+            preConfirm: () => {
+                if (!selectedPreferredLocation.address) {
+                    Swal.showValidationMessage('Please select a location on the map');
+                    return false;
+                }
+                return true;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Update the location input field in preferences modal
+                setTimeout(() => {
+                    const locationInput = document.getElementById('preferredLocation');
+                    if (locationInput) {
+                        locationInput.value = selectedPreferredLocation.address;
+                    }
+                }, 100);
+                // Reopen preferences modal with updated location
+                editPreferences();
+            }
+        });
+    }
+
+    function openDistanceRangePicker() {
+        if (!selectedPreferredLocation.lat || !selectedPreferredLocation.lng) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Set Location First',
+                text: 'Please set your preferred location before selecting distance range',
+                confirmButtonColor: '#1C2B53'
+            }).then(() => {
+                openLocationPicker();
+            });
+            return;
+        }
+
+        const currentDistance = currentPreferences?.maxDistance || 50;
+
+        Swal.fire({
+            title: 'Set Maximum Distance',
+            html: `
+                <div class="text-left">
+                    <p class="text-sm text-gray-600 mb-3">Adjust the range to see jobs within this distance from your location</p>
+                    <div class="mb-3">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Distance Range: <span id="distanceValue">${currentDistance}</span> km</label>
+                        <input type="range" id="distanceRange" min="1" max="100" value="${currentDistance}" 
+                               class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>1 km</span>
+                            <span>100 km</span>
+                        </div>
+                    </div>
+                    <div id="distanceMap" style="height: 400px; border-radius: 8px;"></div>
+                </div>
+            `,
+            width: '700px',
+            showCancelButton: true,
+            confirmButtonText: 'Use This Range',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#1C2B53',
+            cancelButtonColor: '#6B7280',
+            didOpen: () => {
+                initializeDistanceMap(currentDistance);
+            },
+            preConfirm: () => {
+                const distance = document.getElementById('distanceRange').value;
+                return parseInt(distance);
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Store the selected distance
+                selectedMaxDistance = result.value;
+                // Reopen preferences modal with updated distance
+                editPreferences();
+            }
+        });
+    }
+
+    let distanceCircle = null;
+    let distanceMap = null;
+
+    function initializeDistanceMap(initialDistance) {
+        distanceMap = new mapboxgl.Map({
+            container: 'distanceMap',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [selectedPreferredLocation.lng, selectedPreferredLocation.lat],
+            zoom: 10
+        });
+
+        distanceMap.addControl(new mapboxgl.NavigationControl());
+
+        // Add marker for preferred location
+        new mapboxgl.Marker({ color: '#1C2B53' })
+            .setLngLat([selectedPreferredLocation.lng, selectedPreferredLocation.lat])
+            .addTo(distanceMap);
+
+        distanceMap.on('load', () => {
+            updateDistanceCircle(initialDistance);
+            
+            // Add event listener for range slider after map is loaded
+            const rangeSlider = document.getElementById('distanceRange');
+            if (rangeSlider) {
+                rangeSlider.addEventListener('input', (e) => {
+                    updateDistanceCircle(e.target.value);
+                });
+            }
+        });
+    }
+
+    function updateDistanceCircle(distance) {
+        document.getElementById('distanceValue').textContent = distance;
+
+        if (!distanceMap) return;
+
+        // Remove existing layers first, then source
+        if (distanceMap.getLayer('distance-circle-outline')) {
+            distanceMap.removeLayer('distance-circle-outline');
+        }
+        if (distanceMap.getLayer('distance-circle')) {
+            distanceMap.removeLayer('distance-circle');
+        }
+        if (distanceMap.getSource('distance-circle')) {
+            distanceMap.removeSource('distance-circle');
+        }
+
+        // Create circle
+        const center = [selectedPreferredLocation.lng, selectedPreferredLocation.lat];
+        const radiusInKm = parseFloat(distance);
+        const points = 64;
+        const coords = {
+            latitude: selectedPreferredLocation.lat,
+            longitude: selectedPreferredLocation.lng
+        };
+
+        const km = radiusInKm;
+        const ret = [];
+        const distanceX = km / (111.320 * Math.cos(coords.latitude * Math.PI / 180));
+        const distanceY = km / 110.574;
+
+        for (let i = 0; i < points; i++) {
+            const theta = (i / points) * (2 * Math.PI);
+            const x = distanceX * Math.cos(theta);
+            const y = distanceY * Math.sin(theta);
+            ret.push([coords.longitude + x, coords.latitude + y]);
+        }
+        ret.push(ret[0]);
+
+        distanceMap.addSource('distance-circle', {
+            type: 'geojson',
+            data: {
+                type: 'Feature',
+                geometry: {
+                    type: 'Polygon',
+                    coordinates: [ret]
+                }
+            }
+        });
+
+        distanceMap.addLayer({
+            id: 'distance-circle',
+            type: 'fill',
+            source: 'distance-circle',
+            paint: {
+                'fill-color': '#6C63FF',
+                'fill-opacity': 0.2
+            }
+        });
+
+        distanceMap.addLayer({
+            id: 'distance-circle-outline',
+            type: 'line',
+            source: 'distance-circle',
+            paint: {
+                'line-color': '#1C2B53',
+                'line-width': 2
+            }
+        });
+
+        // Fit map to circle bounds
+        const bounds = ret.reduce((bounds, coord) => {
+            return bounds.extend(coord);
+        }, new mapboxgl.LngLatBounds(ret[0], ret[0]));
+
+        distanceMap.fitBounds(bounds, { padding: 50 });
+    }
+
+    function initializeLocationPicker() {
+        const map = new mapboxgl.Map({
+            container: 'locationPickerMap',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [122.8425853, 10.5288236], // Bago City, Philippines
+            zoom: 12
+        });
+
+        map.addControl(new mapboxgl.NavigationControl());
+
+        let marker = null;
+
+        // Click on map to set location
+        map.on('click', async (e) => {
+            const { lng, lat } = e.lngLat;
+            
+            // Remove existing marker
+            if (marker) {
+                marker.remove();
+            }
+
+            // Add new marker
+            marker = new mapboxgl.Marker({ color: '#1C2B53', draggable: true })
+                .setLngLat([lng, lat])
+                .addTo(map);
+
+            // Update marker position on drag
+            marker.on('dragend', async () => {
+                const lngLat = marker.getLngLat();
+                await updateSelectedLocation(lngLat.lng, lngLat.lat);
+            });
+
+            // Update selected location
+            await updateSelectedLocation(lng, lat);
+        });
+
+        async function updateSelectedLocation(lng, lat) {
+            try {
+                const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}`);
+                const data = await response.json();
+                const address = data.features[0]?.place_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+                selectedPreferredLocation = { lat, lng, address };
+                
+                document.getElementById('selectedLocationText').textContent = address;
+                document.getElementById('selectedLocationInfo').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error getting address:', error);
+                selectedPreferredLocation = { lat, lng, address: `${lat.toFixed(6)}, ${lng.toFixed(6)}` };
+                document.getElementById('selectedLocationText').textContent = selectedPreferredLocation.address;
+                document.getElementById('selectedLocationInfo').classList.remove('hidden');
+            }
+        }
+    }
+</script>

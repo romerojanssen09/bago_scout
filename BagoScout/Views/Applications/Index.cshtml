@@ -1,0 +1,640 @@
+@{
+    @using Microsoft.Extensions.Configuration
+    @inject IConfiguration Configuration
+
+    ViewData["Title"] = "My Applications";
+    ViewData["ActivePage"] = "Applications";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
+
+<style>
+    body {
+        background: white !important;
+    }
+    .applications-container {
+        background: white;
+        min-height: 100vh;
+    }
+    
+    .applications-content {
+        padding: 32px;
+    }
+    
+    @@media (max-width: 768px) {
+        .applications-content {
+            padding: 16px;
+        }
+        .page-header h2 {
+            font-size: 24px;
+        }
+        .page-header p {
+            font-size: 14px;
+        }
+        .filter-tabs {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+        }
+        .filter-tab-all {
+            width: 100% !important;
+        }
+        .filter-tabs-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+            width: 100% !important;
+        }
+        .filter-tabs-grid .filter-tab {
+            width: 100% !important;
+        }
+        .application-card {
+            padding: 16px !important;
+        }
+        .card-header-mobile .w-16 {
+            width: 48px !important;
+            height: 48px !important;
+        }
+        .application-card .text-lg {
+            font-size: 16px !important;
+        }
+        .application-card .grid-cols-2 {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+        }
+        .status-badge {
+            font-size: 11px !important;
+            padding: 4px 12px !important;
+        }
+        .application-card .badges-container {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+            width: 100% !important;
+        }
+        .application-card .badges-container .status-badge,
+        .application-card .badges-container button {
+            width: 100% !important;
+            text-align: center !important;
+        }
+        .application-card .flex.gap-2.mt-4 {
+            flex-direction: column !important;
+            gap: 8px !important;
+        }
+        .application-card .flex.gap-2.mt-4 button {
+            width: 100% !important;
+            font-size: 13px !important;
+            padding: 8px 12px !important;
+        }
+    }
+    
+    .application-card {
+        background: white;
+        border: 2px solid #E5E7EB;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+        transition: all 0.3s;
+        position: relative;
+    }
+    .card-header-mobile {
+        display: flex;
+        align-items: start;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    .card-content-mobile {
+        width: 100%;
+    }
+    
+    @@media (min-width: 769px) {
+        .badges-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+    }
+    .application-card:hover {
+        border-color: #6C63FF;
+        box-shadow: 0 4px 12px rgba(108, 99, 255, 0.1);
+    }
+    .status-badge {
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .status-pending {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+    .status-reviewed {
+        background: #DBEAFE;
+        color: #1E40AF;
+    }
+    .status-accepted {
+        background: #D1FAE5;
+        color: #065F46;
+    }
+    .status-rejected {
+        background: #FEE2E2;
+        color: #991B1B;
+    }
+    .page-header {
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 2px solid #E5E7EB;
+    }
+    .filter-tabs {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+    
+    .filter-tabs-grid {
+        display: contents;
+    }
+    
+    .filter-tab {
+        padding: 8px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        background: transparent;
+        color: #6B7280;
+        border: none;
+    }
+    .filter-tab:hover {
+        background: #F3F4F6;
+    }
+    .filter-tab.active {
+        background: #1C2B53;
+        color: white;
+    }
+</style>
+
+<div class="applications-container">
+    <div class="applications-content">
+        <div class="page-header">
+        <h2 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+            <i class="fas fa-file-alt text-primary-purple"></i>
+            My Applications
+        </h2>
+        <p class="text-gray-600 mt-2">Track your job applications and their status</p>
+    </div>
+    
+    <div class="filter-tabs">
+        <button class="filter-tab filter-tab-all active" onclick="filterApplications('all')">
+            All Applications
+        </button>
+        <div class="filter-tabs-grid">
+            <button class="filter-tab" onclick="filterApplications('Pending')">
+                Pending
+            </button>
+            <button class="filter-tab" onclick="filterApplications('Reviewed')">
+                Reviewed
+            </button>
+            <button class="filter-tab" onclick="filterApplications('Accepted')">
+                Accepted
+            </button>
+            <button class="filter-tab" onclick="filterApplications('Rejected')">
+                Rejected
+            </button>
+        </div>
+    </div>
+
+    <div id="applicationsContainer">
+        <div class="text-center py-12">
+            <i class="fas fa-spinner fa-spin text-4xl text-gray-400 mb-4"></i>
+            <p class="text-gray-600">Loading your applications...</p>
+        </div>
+    </div>
+    </div>
+</div>
+
+<script>
+    let allApplications = [];
+    let currentFilter = 'all';
+
+    async function loadApplications() {
+        try {
+            const response = await fetch('/api/applications/seeker');
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch applications');
+            }
+            
+            allApplications = await response.json();
+            renderApplications();
+
+        } catch (error) {
+            console.error('Error loading applications:', error);
+            document.getElementById('applicationsContainer').innerHTML = `
+                <div class="text-center py-12">
+                    <i class="fas fa-exclamation-circle text-6xl text-red-300 mb-4"></i>
+                    <h3 class="text-xl font-bold text-gray-700 mb-2">Error Loading Applications</h3>
+                    <p class="text-gray-600">Please try refreshing the page.</p>
+                </div>
+            `;
+        }
+    }
+
+    function filterApplications(status) {
+        currentFilter = status;
+        
+        // Update active tab
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        event.target.classList.add('active');
+        
+        renderApplications();
+    }
+
+    function renderApplications() {
+        const container = document.getElementById('applicationsContainer');
+        
+        // Filter applications
+        const filteredApps = currentFilter === 'all' 
+            ? allApplications 
+            : allApplications.filter(app => app.status === currentFilter);
+        
+        if (!Array.isArray(filteredApps) || filteredApps.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-12">
+                    <i class="fas fa-inbox text-6xl text-gray-300 mb-4"></i>
+                    <h3 class="text-xl font-bold text-gray-700 mb-2">No Applications Found</h3>
+                    <p class="text-gray-600 mb-4">
+                        ${currentFilter === 'all' 
+                            ? "You haven't applied to any jobs yet." 
+                            : `You don't have any ${currentFilter.toLowerCase()} applications.`}
+                    </p>
+                    <a href="/Jobs/Search" class="inline-block bg-dark-navy text-white px-6 py-3 rounded-lg font-semibold hover:bg-opacity-90 transition">
+                        <i class="fas fa-search mr-2"></i> Find Jobs
+                    </a>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = filteredApps.map(app => {
+            const appliedDate = new Date(app.appliedAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const statusClass = `status-${app.status.toLowerCase()}`;
+
+            return `
+                <div class="application-card">
+                    <div class="card-header-mobile">
+                        <div class="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-briefcase text-primary-purple text-2xl"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-bold text-gray-800 mb-1">
+                                ${app.jobTitle}
+                            </h3>
+                            <p class="text-sm text-gray-600">
+                                ${app.company}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="card-content-mobile">
+                        <div class="badges-container flex gap-2 flex-wrap mb-3">
+                            <span class="status-badge ${statusClass}">${app.status}</span>
+                            ${app.hasEmails ? `
+                                <button onclick="viewEmails(${app.applicationId})" class="status-badge" style="background: #DBEAFE; color: #1E40AF; cursor: pointer; border: none;">
+                                    <i class="fas fa-envelope mr-1"></i> Emailed
+                                </button>
+                            ` : ''}
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mt-3 text-sm text-gray-600">
+                            <div>
+                                <i class="fas fa-map-marker-alt mr-2"></i>${app.jobLocation || 'Location not specified'}
+                            </div>
+                            <div>
+                                <i class="fas fa-calendar mr-2"></i>Applied: ${appliedDate}
+                            </div>
+                        </div>
+                            ${app.coverLetter ? `
+                                <div class="mt-3 p-3 bg-gray-50 rounded-lg">
+                                    <p class="text-sm text-gray-700"><strong>Your Cover Letter:</strong> ${app.coverLetter}</p>
+                                </div>
+                            ` : ''}
+                            <div class="flex gap-2 mt-4">
+                                <button onclick="viewJobDetails(${app.jobId})" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
+                                    <i class="fas fa-eye mr-1"></i> View Job
+                                </button>
+                                <button onclick="viewCompanyProfile(${app.employerId})" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition">
+                                    <i class="fas fa-building mr-1"></i> View Company
+                                </button>
+                                ${app.status === 'Pending' ? `
+                                    <button onclick="withdrawApplication(${app.applicationId})" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition">
+                                        <i class="fas fa-times mr-1"></i> Withdraw
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function viewJobDetails(jobId) {
+        try {
+            const response = await fetch(`/api/jobs/${jobId}`);
+            if (!response.ok) throw new Error('Failed to fetch job details');
+            
+            const job = await response.json();
+            
+            Swal.fire({
+                title: job.title,
+                html: `
+                    <div class="text-left space-y-4">
+                        <div class="flex items-center gap-2 text-gray-700">
+                            <i class="fas fa-building text-primary-purple"></i>
+                            <span class="font-semibold">${job.company}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-600">
+                            <i class="fas fa-map-marker-alt text-primary-purple"></i>
+                            <span>${job.address || 'Location not specified'}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-600">
+                            <i class="fas fa-briefcase text-primary-purple"></i>
+                            <span>${job.jobType}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-600">
+                            <i class="fas fa-chart-line text-primary-purple"></i>
+                            <span>${job.experienceLevel}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-gray-600">
+                            <i class="fas fa-dollar-sign text-primary-purple"></i>
+                            <span>${job.salaryRange}</span>
+                        </div>
+                        <div class="border-t pt-3">
+                            <h4 class="font-bold text-gray-800 mb-2">Description</h4>
+                            <p class="text-gray-700 text-sm">${job.description}</p>
+                        </div>
+                        ${job.requirements ? `
+                            <div class="border-t pt-3">
+                                <h4 class="font-bold text-gray-800 mb-2">Requirements</h4>
+                                <p class="text-gray-700 text-sm">${job.requirements}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                `,
+                width: '600px',
+                confirmButtonText: 'Close',
+                confirmButtonColor: '#1C2B53'
+            });
+        } catch (error) {
+            console.error('Error fetching job details:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to load job details',
+                confirmButtonColor: '#1C2B53'
+            });
+        }
+    }
+
+    function withdrawApplication(applicationId) {
+        Swal.fire({
+            title: 'Withdraw Application?',
+            text: "Are you sure you want to withdraw this application? This action cannot be undone.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#DC2626',
+            cancelButtonColor: '#6B7280',
+            confirmButtonText: 'Yes, withdraw it',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Feature Coming Soon',
+                    text: 'Application withdrawal feature will be available soon!',
+                    confirmButtonColor: '#1C2B53'
+                });
+            }
+        });
+    }
+
+    async function viewEmails(applicationId) {
+        try {
+            const response = await fetch(`/api/email/application/${applicationId}`);
+            if (!response.ok) throw new Error('Failed to fetch emails');
+            
+            const emails = await response.json();
+            
+            if (!emails || emails.length === 0) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'No Emails',
+                    text: 'No emails found for this application.',
+                    confirmButtonColor: '#1C2B53'
+                });
+                return;
+            }
+
+            const emailsHtml = emails.map(email => {
+                const sentDate = new Date(email.sentAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                return `
+                    <div class="border-b pb-4 mb-4 last:border-b-0">
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="font-bold text-gray-800">${email.subject}</h4>
+                            <span class="text-xs text-gray-500">${sentDate}</span>
+                        </div>
+                        <p class="text-sm text-gray-700 whitespace-pre-wrap">${email.message}</p>
+                    </div>
+                `;
+            }).join('');
+            
+            Swal.fire({
+                title: 'Employer Messages',
+                html: `
+                    <div class="text-left max-h-96 overflow-y-auto">
+                        ${emailsHtml}
+                    </div>
+                `,
+                width: '700px',
+                confirmButtonText: 'Close',
+                confirmButtonColor: '#1C2B53'
+            });
+
+            // Mark emails as read
+            emails.forEach(email => {
+                if (!email.isRead) {
+                    fetch(`/api/email/mark-read/${email.emailId}`, { method: 'POST' });
+                }
+            });
+
+        } catch (error) {
+            console.error('Error fetching emails:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to load emails',
+                confirmButtonColor: '#1C2B53'
+            });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadApplications);
+
+    mapboxgl.accessToken = '@Configuration["MapBox:Token"]';
+
+    async function viewCompanyProfile(employerId) {
+        try {
+            const response = await fetch(`/api/company/profile/${employerId}`);
+            if (!response.ok) throw new Error('Failed to fetch company profile');
+            
+            const company = await response.json();
+            
+            Swal.fire({
+                title: company.companyName || 'Company Profile',
+                html: `
+                    <div class="text-left space-y-4">
+                        ${company.companyLogoPath ? `
+                            <div class="text-center mb-4">
+                                <img src="${company.companyLogoPath}" alt="Company Logo" class="w-32 h-32 rounded-lg mx-auto object-cover border-4 border-purple-200">
+                            </div>
+                        ` : `
+                            <div class="text-center mb-4">
+                                <div class="w-32 h-32 rounded-lg mx-auto bg-indigo-100 flex items-center justify-center">
+                                    <i class="fas fa-building text-5xl text-indigo-600"></i>
+                                </div>
+                            </div>
+                        `}
+                        
+                        <!-- Company Info -->
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <h4 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                                <i class="fas fa-info-circle text-primary-purple"></i>
+                                Company Information
+                            </h4>
+                            <div class="space-y-2">
+                                ${company.companyIndustry ? `
+                                    <div class="flex items-center gap-2 text-gray-700">
+                                        <i class="fas fa-industry text-primary-purple w-5"></i>
+                                        <span class="text-sm">${company.companyIndustry}</span>
+                                    </div>
+                                ` : ''}
+                                ${company.companySize ? `
+                                    <div class="flex items-center gap-2 text-gray-700">
+                                        <i class="fas fa-users text-primary-purple w-5"></i>
+                                        <span class="text-sm">${company.companySize} employees</span>
+                                    </div>
+                                ` : ''}
+                                ${company.companyWebsite ? `
+                                    <div class="flex items-center gap-2 text-gray-700">
+                                        <i class="fas fa-globe text-primary-purple w-5"></i>
+                                        <a href="${company.companyWebsite}" target="_blank" class="text-sm text-primary-purple hover:underline">${company.companyWebsite}</a>
+                                    </div>
+                                ` : ''}
+                                ${company.email ? `
+                                    <div class="flex items-center gap-2 text-gray-700">
+                                        <i class="fas fa-envelope text-primary-purple w-5"></i>
+                                        <span class="text-sm">${company.email}</span>
+                                    </div>
+                                ` : ''}
+                                ${company.phoneNumber ? `
+                                    <div class="flex items-center gap-2 text-gray-700">
+                                        <i class="fas fa-phone text-primary-purple w-5"></i>
+                                        <span class="text-sm">${company.phoneNumber}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+
+                        <!-- Company Description -->
+                        ${company.companyDescription ? `
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <h4 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                                    <i class="fas fa-align-left text-primary-purple"></i>
+                                    About Company
+                                </h4>
+                                <p class="text-sm text-gray-700 whitespace-pre-wrap">${company.companyDescription}</p>
+                            </div>
+                        ` : ''}
+
+                        <!-- Company Location -->
+                        ${company.isAccepted && company.companyLatitude && company.companyLongitude ? `
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <h4 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                                    <i class="fas fa-map-marker-alt text-primary-purple"></i>
+                                    Location
+                                    <span class="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                                        <i class="fas fa-check-circle mr-1"></i> Accepted - Location Revealed
+                                    </span>
+                                </h4>
+                                <p class="text-sm text-gray-700 mb-2">${company.companyAddress || 'Address not specified'}</p>
+                                <div id="companyMapModal" style="height: 300px; border-radius: 8px;"></div>
+                            </div>
+                        ` : !company.isAccepted ? `
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <h4 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                                    <i class="fas fa-map-marker-alt text-primary-purple"></i>
+                                    Location
+                                </h4>
+                                <div class="text-center py-8">
+                                    <i class="fas fa-lock text-4xl text-gray-400 mb-3"></i>
+                                    <p class="text-sm text-gray-600">Company location will be revealed once your application is accepted</p>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `,
+                width: '700px',
+                confirmButtonText: 'Close',
+                confirmButtonColor: '#1C2B53',
+                didOpen: () => {
+                    if (company.companyLatitude && company.companyLongitude) {
+                        const map = new mapboxgl.Map({
+                            container: 'companyMapModal',
+                            style: 'mapbox://styles/mapbox/streets-v12',
+                            center: [company.companyLongitude, company.companyLatitude],
+                            zoom: 14
+                        });
+
+                        map.addControl(new mapboxgl.NavigationControl());
+
+                        new mapboxgl.Marker({ color: '#1C2B53' })
+                            .setLngLat([company.companyLongitude, company.companyLatitude])
+                            .setPopup(new mapboxgl.Popup().setHTML(`
+                                <div class="p-2">
+                                    <h4 class="font-bold">${company.companyName || 'Company Location'}</h4>
+                                    <p class="text-sm">${company.companyAddress || ''}</p>
+                                </div>
+                            `))
+                            .addTo(map);
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching company profile:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to load company profile',
+                confirmButtonColor: '#1C2B53'
+            });
+        }
+    }
+</script>
