@@ -59,6 +59,7 @@ builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenAnyIP(5180); // HTTP
     options.ListenAnyIP(7030, listenOptions => listenOptions.UseHttps()); // HTTPS
+    options.ListenAnyIP(Convert.ToInt32(Environment.GetEnvironmentVariable("PORT") ?? "8080"));
 });
 
 var app = builder.Build();
