@@ -38,6 +38,8 @@ namespace BagoScout.Controllers
                         minSalary = (int?)null,
                         maxSalary = (int?)null,
                         preferredLocation = "",
+                        preferredLatitude = (double?)null,
+                        preferredLongitude = (double?)null,
                         maxDistance = (int?)null,
                         preferredExperienceLevel = ""
                     });
@@ -50,6 +52,8 @@ namespace BagoScout.Controllers
                     preferences.MinSalary,
                     preferences.MaxSalary,
                     preferences.PreferredLocation,
+                    preferences.PreferredLatitude,
+                    preferences.PreferredLongitude,
                     preferences.MaxDistance,
                     preferences.PreferredExperienceLevel
                 });
