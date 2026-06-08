@@ -20,7 +20,9 @@ namespace BagoScout.Controllers
         {
             try
             {
-                var userId = HttpContext.Session.GetInt32("UserId");
+                var userId = HttpContext.Session.GetInt32("UserId")
+                             ?? await this.GetAuthorizedUserIdAsync(_context);
+
                 if (userId == null)
                 {
                     return Unauthorized(new { message = "User not logged in" });
@@ -47,15 +49,15 @@ namespace BagoScout.Controllers
 
                 return Ok(new
                 {
-                    preferences.PreferredJobType,
-                    preferences.PreferredJobTitles,
-                    preferences.MinSalary,
-                    preferences.MaxSalary,
-                    preferences.PreferredLocation,
-                    preferences.PreferredLatitude,
-                    preferences.PreferredLongitude,
-                    preferences.MaxDistance,
-                    preferences.PreferredExperienceLevel
+                    preferredJobType = preferences.PreferredJobType,
+                    preferredJobTitles = preferences.PreferredJobTitles,
+                    minSalary = preferences.MinSalary,
+                    maxSalary = preferences.MaxSalary,
+                    preferredLocation = preferences.PreferredLocation,
+                    preferredLatitude = preferences.PreferredLatitude,
+                    preferredLongitude = preferences.PreferredLongitude,
+                    maxDistance = preferences.MaxDistance,
+                    preferredExperienceLevel = preferences.PreferredExperienceLevel
                 });
             }
             catch (Exception ex)
@@ -70,7 +72,9 @@ namespace BagoScout.Controllers
         {
             try
             {
-                var userId = HttpContext.Session.GetInt32("UserId");
+                // Support both web sessions and mobile JWT tokens
+                var userId = HttpContext.Session.GetInt32("UserId")
+                             ?? await this.GetAuthorizedUserIdAsync(_context);
                 if (userId == null)
                 {
                     return Unauthorized(new { message = "User not logged in" });
@@ -129,7 +133,9 @@ namespace BagoScout.Controllers
         {
             try
             {
-                var userId = HttpContext.Session.GetInt32("UserId");
+                // Support both web sessions and mobile JWT tokens
+                var userId = HttpContext.Session.GetInt32("UserId")
+                             ?? await this.GetAuthorizedUserIdAsync(_context);
                 if (userId == null)
                 {
                     return Unauthorized(new { message = "User not logged in" });
