@@ -24,34 +24,51 @@ namespace BagoScout.Services
 
                 try
                 {
-                    // Check standard paths for service account key
-                    var keyPath = Path.Combine(Directory.GetCurrentDirectory(), "firebase-key.json");
-                    if (!File.Exists(keyPath))
-                    {
-                        // Fallback check in base directory
-                        keyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "firebase-key.json");
-                    }
-
-                    if (File.Exists(keyPath))
+                    // Try environment variable first (for Railway/production deployment)
+                    var credentialsJson = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS_JSON");
+                    
+                    if (!string.IsNullOrEmpty(credentialsJson))
                     {
                         if (FirebaseApp.DefaultInstance == null)
                         {
                             FirebaseApp.Create(new AppOptions()
                             {
-                                Credential = GoogleCredential.FromFile(keyPath)
+                                Credential = GoogleCredential.FromJson(credentialsJson)
                             });
                         }
                         _hasCredentials = true;
-                        System.Diagnostics.Debug.WriteLine("Firebase Admin SDK successfully initialized from firebase-key.json.");
+                        System.Diagnostics.Debug.WriteLine("✅ Firebase Admin SDK initialized from environment variable (Railway).");
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine("Firebase service account credentials file (firebase-key.json) not found. Push notifications will run in Mock Mode.");
+                        // Fallback to file-based credentials (for local development)
+                        var keyPath = Path.Combine(Directory.GetCurrentDirectory(), "firebase-key.json");
+                        if (!File.Exists(keyPath))
+                        {
+                            keyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "firebase-key.json");
+                        }
+
+                        if (File.Exists(keyPath))
+                        {
+                            if (FirebaseApp.DefaultInstance == null)
+                            {
+                                FirebaseApp.Create(new AppOptions()
+                                {
+                                    Credential = GoogleCredential.FromFile(keyPath)
+                                });
+                            }
+                            _hasCredentials = true;
+                            System.Diagnostics.Debug.WriteLine("✅ Firebase Admin SDK initialized from firebase-key.json file (local).");
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("⚠️ No Firebase credentials found. Push notifications will run in Mock Mode.");
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Failed to initialize Firebase Admin SDK: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"❌ Failed to initialize Firebase Admin SDK: {ex.Message}");
                 }
                 finally
                 {
