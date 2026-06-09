@@ -25,41 +25,6 @@ namespace BagoScout.Controllers
             _logger = logger;
         }
 
-        [HttpGet("debug-email")]
-        public async Task<IActionResult> DebugEmail([FromQuery] string? to = null)
-        {
-            var results = new System.Collections.Generic.List<string>();
-
-            var emailSection = HttpContext.RequestServices
-                .GetRequiredService<IConfiguration>().GetSection("EmailSettings");
-
-            var clientId = emailSection["GmailClientId"] ?? "";
-            var clientSecret = emailSection["GmailClientSecret"] ?? "";
-            var refreshToken = emailSection["GmailRefreshToken"] ?? "";
-            var senderEmail = emailSection["SenderEmail"] ?? "";
-            var senderName = emailSection["SenderName"] ?? "";
-
-            results.Add($"SenderName: '{senderName}'");
-            results.Add($"SenderEmail: '{senderEmail}'");
-            results.Add($"GmailClientId set: {!string.IsNullOrWhiteSpace(clientId)} (starts: '{(clientId.Length > 10 ? clientId[..10] + "..." : "(empty)")}')");
-            results.Add($"GmailClientSecret set: {!string.IsNullOrWhiteSpace(clientSecret)}");
-            results.Add($"GmailRefreshToken set: {!string.IsNullOrWhiteSpace(refreshToken)}");
-
-            if (string.IsNullOrWhiteSpace(to))
-            {
-                results.Add("---");
-                results.Add("Pass ?to=your@email.com to send a test email.");
-                return Ok(new { config = results });
-            }
-
-            results.Add($"---");
-            results.Add($"Attempting to send test email to: {to}");
-
-            var sent = await _emailService.SendVerificationEmailAsync(to, "Test User", "123456");
-            results.Add(sent ? "SUCCESS - Email sent via Gmail API!" : "FAILED - Check Railway logs for details.");
-
-            return Ok(new { debug = results });
-        }
 
 
         [HttpGet("check-email/{email}")]
