@@ -25,7 +25,75 @@ namespace BagoScout.Controllers
             _logger = logger;
         }
 
-        [HttpGet("check-email/{email}")]
+        [HttpGet("debug-email")]
+        public async Task<IActionResult> DebugEmail([FromQuery] string? to = null)
+        {
+            var results = new System.Collections.Generic.List<string>();
+
+            // 1. Read config
+            var emailSection = HttpContext.RequestServices
+                .GetRequiredService<IConfiguration>().GetSection("EmailSettings");
+
+            var resendKey = emailSection["ResendApiKey"] ?? "";
+            var senderEmail = emailSection["SenderEmail"] ?? "";
+            var senderName = emailSection["SenderName"] ?? "";
+
+            results.Add($"SenderName: '{senderName}'");
+            results.Add($"SenderEmail: '{senderEmail}'");
+            results.Add($"ResendApiKey set: {!string.IsNullOrWhiteSpace(resendKey)} (starts with: '{(resendKey.Length > 6 ? resendKey[..6] + "..." : "(empty)")}')");
+
+            // 2. If no test recipient provided, just show config
+            if (string.IsNullOrWhiteSpace(to))
+            {
+                results.Add("---");
+                results.Add("Pass ?to=your@email.com to also send a test email.");
+                return Ok(new { config = results });
+            }
+
+            // 3. Try sending a real test email via Resend API
+            results.Add($"---");
+            results.Add($"Attempting to send test email to: {to}");
+
+            try
+            {
+                var httpFactory = HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
+                var client = httpFactory.CreateClient("Resend");
+
+                var payload = new
+                {
+                    from = $"{senderName} <{senderEmail}>",
+                    to = new[] { to },
+                    subject = "BagoScout Debug Test Email",
+                    html = "<h1>Test email from BagoScout on Railway</h1><p>If you see this, email is working!</p>"
+                };
+
+                var json = System.Text.Json.JsonSerializer.Serialize(payload);
+                var request = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", resendKey);
+                request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var response = await client.SendAsync(request);
+                var body = await response.Content.ReadAsStringAsync();
+
+                results.Add($"HTTP Status: {(int)response.StatusCode} {response.StatusCode}");
+                results.Add($"Resend Response: {body}");
+
+                if (response.IsSuccessStatusCode)
+                    results.Add("SUCCESS - Email sent!");
+                else
+                    results.Add("FAILED - See Resend Response above for details.");
+            }
+            catch (Exception ex)
+            {
+                results.Add($"EXCEPTION: {ex.GetType().Name}: {ex.Message}");
+                if (ex.InnerException != null)
+                    results.Add($"Inner: {ex.InnerException.Message}");
+            }
+
+            return Ok(new { debug = results });
+        }
+
+
         public async Task<IActionResult> CheckEmail(string email)
         {
             try

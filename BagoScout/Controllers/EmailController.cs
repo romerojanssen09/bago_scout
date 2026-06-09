@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using System.Net;
-using System.Net.Mail;
 using BagoScout.Data;
 using BagoScout.Models;
+using BagoScout.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace BagoScout.Controllers
@@ -11,11 +10,15 @@ namespace BagoScout.Controllers
     {
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _context;
+        private readonly IEmailService _emailService;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public EmailController(IConfiguration configuration, ApplicationDbContext context)
+        public EmailController(IConfiguration configuration, ApplicationDbContext context, IEmailService emailService, IHttpClientFactory httpClientFactory)
         {
             _configuration = configuration;
             _context = context;
+            _emailService = emailService;
+            _httpClientFactory = httpClientFactory;
         }
 
         [HttpPost]
@@ -30,13 +33,10 @@ namespace BagoScout.Controllers
                     return Unauthorized(new { message = "User not logged in" });
                 }
 
-                var senderName = HttpContext.Session.GetString("UserName");
+                var senderName = HttpContext.Session.GetString("UserName") ?? "BagoScout User";
                 var senderEmail = _configuration["EmailSettings:SenderEmail"] ?? "noreply@bagoscout.com";
-                var smtpServer = _configuration["EmailSettings:SmtpServer"] ?? "smtp.gmail.com";
-                var smtpPortStr = _configuration["EmailSettings:SmtpPort"] ?? "587";
-                var smtpPort = int.Parse(smtpPortStr);
-                var username = _configuration["EmailSettings:Username"] ?? "";
-                var password = _configuration["EmailSettings:Password"] ?? "";
+                var senderDisplayName = _configuration["EmailSettings:SenderName"] ?? "BagoScout";
+                var resendApiKey = _configuration["EmailSettings:ResendApiKey"] ?? "";
 
                 // Save email to database
                 var emailMessage = new EmailMessage
@@ -53,17 +53,15 @@ namespace BagoScout.Controllers
                 _context.EmailMessages.Add(emailMessage);
                 await _context.SaveChangesAsync();
 
-                // Send email via SMTP
-                using (var client = new SmtpClient(smtpServer, smtpPort))
+                // Send email via Resend HTTP API (SMTP blocked on Railway)
+                if (!string.IsNullOrWhiteSpace(resendApiKey))
                 {
-                    client.EnableSsl = true;
-                    client.Credentials = new NetworkCredential(username, password);
-
-                    var mailMessage = new MailMessage
+                    var payload = new
                     {
-                        From = new MailAddress(senderEmail, $"BagoScout - {senderName}"),
-                        Subject = request.Subject,
-                        Body = $@"
+                        from = $"{senderDisplayName} <{senderEmail}>",
+                        to = new[] { request.To },
+                        subject = request.Subject,
+                        html = $@"
                             <html>
                             <body style='font-family: Arial, sans-serif;'>
                                 <div style='max-width: 600px; margin: 0 auto; padding: 20px;'>
@@ -77,14 +75,22 @@ namespace BagoScout.Controllers
                                     </p>
                                 </div>
                             </body>
-                            </html>
-                        ",
-                        IsBodyHtml = true
+                            </html>"
                     };
 
-                    mailMessage.To.Add(request.To);
+                    var json = System.Text.Json.JsonSerializer.Serialize(payload);
+                    var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
+                    httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", resendApiKey);
+                    httpRequest.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-                    await client.SendMailAsync(mailMessage);
+                    var client = _httpClientFactory.CreateClient("Resend");
+                    var response = await client.SendAsync(httpRequest);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var err = await response.Content.ReadAsStringAsync();
+                        return StatusCode(500, new { message = "Email saved but delivery failed", error = err });
+                    }
                 }
 
                 return Ok(new { message = "Email sent successfully", emailId = emailMessage.EmailId });
