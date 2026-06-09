@@ -62,6 +62,7 @@ namespace BagoScout.Controllers
         }
 
 
+        [HttpGet("check-email/{email}")]
         public async Task<IActionResult> CheckEmail(string email)
         {
             try
