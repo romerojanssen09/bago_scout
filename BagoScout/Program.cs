@@ -51,6 +51,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Configure Email Settings
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 
+// Register HttpClient factory (used by EmailService to call Resend API)
+builder.Services.AddHttpClient("Resend", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+
 // Register Email Service
 builder.Services.AddScoped<IEmailService, EmailService>();
 
