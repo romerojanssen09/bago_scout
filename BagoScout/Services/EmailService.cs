@@ -45,16 +45,35 @@ namespace BagoScout.Services
                 return false;
             }
 
+            // Resend does not allow sending from free email providers like Gmail.
+            // If the configured sender is a Gmail/Hotmail/Yahoo address, fall back to
+            // the Resend shared test domain so emails still go out.
+            var senderEmail = _emailSettings.SenderEmail ?? "";
+            var freeProviders = new[] { "@gmail.com", "@hotmail.com", "@yahoo.com", "@outlook.com" };
+            bool isFreeDomain = freeProviders.Any(p => senderEmail.EndsWith(p, StringComparison.OrdinalIgnoreCase));
+
+            string fromAddress;
+            if (isFreeDomain)
+            {
+                // Use Resend's shared onboarding domain for testing
+                fromAddress = $"{_emailSettings.SenderName} <onboarding@resend.dev>";
+                _logger.LogWarning($"[EmailService] Sender '{senderEmail}' is a free email provider — Resend does not allow this. Using 'onboarding@resend.dev' instead. To send from your own address, verify a domain at resend.com.");
+            }
+            else
+            {
+                fromAddress = $"{_emailSettings.SenderName} <{senderEmail}>";
+            }
+
             var payload = new
             {
-                from = $"{_emailSettings.SenderName} <{_emailSettings.SenderEmail}>",
+                from = fromAddress,
                 to = new[] { toEmail },
                 subject = subject,
                 html = htmlBody
             };
 
             var json = JsonSerializer.Serialize(payload);
-            _logger.LogInformation($"[EmailService] Sending via Resend API to {toEmail}, subject: {subject}");
+            _logger.LogInformation($"[EmailService] Sending via Resend API: from='{fromAddress}' to='{toEmail}' subject='{subject}'");
 
             try
             {

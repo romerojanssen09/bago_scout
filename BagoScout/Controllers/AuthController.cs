@@ -594,8 +594,8 @@ namespace BagoScout.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error in ForgotPasswordRequest: {ex.Message}");
-                return StatusCode(500, new { success = false, message = "An error occurred" });
+                _logger.LogError($"Error in ForgotPasswordRequest: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+                return StatusCode(500, new { success = false, message = $"An error occurred: {ex.GetType().Name}: {ex.Message}" });
             }
         }
 
@@ -631,8 +631,8 @@ namespace BagoScout.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error in ForgotPasswordVerify: {ex.Message}");
-                return StatusCode(500, new { success = false, message = "An error occurred" });
+                _logger.LogError($"Error in ForgotPasswordVerify: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+                return StatusCode(500, new { success = false, message = $"An error occurred: {ex.GetType().Name}: {ex.Message}" });
             }
         }
 
@@ -686,8 +686,8 @@ namespace BagoScout.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error in ForgotPasswordReset: {ex.Message}");
-                return StatusCode(500, new { success = false, message = "An error occurred" });
+                _logger.LogError($"Error in ForgotPasswordReset: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+                return StatusCode(500, new { success = false, message = $"An error occurred: {ex.GetType().Name}: {ex.Message}" });
             }
         }
     }
