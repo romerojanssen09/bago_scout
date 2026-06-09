@@ -17,6 +17,63 @@ namespace BagoScout.Services
             _logger = logger;
         }
 
+        /// <summary>
+        /// Sends an email using MailKit. Tries StartTLS on the configured port first,
+        /// then falls back to SSL on port 465 if that fails (handles Railway blocking port 587).
+        /// </summary>
+        private async Task SendEmailAsync(MimeMessage message)
+        {
+            // Normalize password — remove spaces (Gmail App Passwords work both ways)
+            var password = _emailSettings.Password?.Replace(" ", "") ?? string.Empty;
+            var server = _emailSettings.SmtpServer;
+            var port = _emailSettings.SmtpPort;
+
+            _logger.LogInformation($"[EmailService] Attempting SMTP: server={server} port={port} user={_emailSettings.Username}");
+
+            Exception? lastException = null;
+
+            // Attempt 1: Use configured port with StartTls
+            try
+            {
+                using var client = new SmtpClient();
+                await client.ConnectAsync(server, port, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync(_emailSettings.Username, password);
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+                _logger.LogInformation($"[EmailService] Email sent via StartTLS on port {port}");
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                _logger.LogWarning($"[EmailService] StartTLS on port {port} failed: {ex.GetType().Name}: {ex.Message}");
+            }
+
+            // Attempt 2: Fall back to SSL on port 465 (in case port 587 is blocked)
+            if (port != 465)
+            {
+                try
+                {
+                    _logger.LogInformation($"[EmailService] Retrying with SSL on port 465...");
+                    using var client = new SmtpClient();
+                    await client.ConnectAsync(server, 465, SecureSocketOptions.SslOnConnect);
+                    await client.AuthenticateAsync(_emailSettings.Username, password);
+                    await client.SendAsync(message);
+                    await client.DisconnectAsync(true);
+                    _logger.LogInformation($"[EmailService] Email sent via SSL on port 465");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"[EmailService] SSL on port 465 also failed: {ex.GetType().Name}: {ex.Message}");
+                    lastException = ex;
+                }
+            }
+
+            // Both attempts failed — throw so the caller can log and handle
+            throw lastException ?? new Exception("Failed to send email: all SMTP attempts exhausted.");
+        }
+
         public async Task<bool> SendVerificationEmailAsync(string toEmail, string toName, string verificationCode)
         {
             try
@@ -73,18 +130,13 @@ namespace BagoScout.Services
 
                 message.Body = bodyBuilder.ToMessageBody();
 
-                using var client = new SmtpClient();
-                await client.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort, SecureSocketOptions.StartTls);
-                await client.AuthenticateAsync(_emailSettings.Username, _emailSettings.Password);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-
+                await SendEmailAsync(message);
                 _logger.LogInformation($"Verification email sent successfully to {toEmail}");
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error sending verification email to {toEmail}: {ex.Message}");
+                _logger.LogError($"Error sending verification email to {toEmail}: {ex.GetType().Name}: {ex.Message}");
                 return false;
             }
         }
@@ -146,18 +198,13 @@ namespace BagoScout.Services
 
                 message.Body = bodyBuilder.ToMessageBody();
 
-                using var client = new SmtpClient();
-                await client.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort, SecureSocketOptions.StartTls);
-                await client.AuthenticateAsync(_emailSettings.Username, _emailSettings.Password);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-
+                await SendEmailAsync(message);
                 _logger.LogInformation($"Welcome email sent successfully to {toEmail}");
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error sending welcome email to {toEmail}: {ex.Message}");
+                _logger.LogError($"Error sending welcome email to {toEmail}: {ex.GetType().Name}: {ex.Message}");
                 return false;
             }
         }
@@ -214,18 +261,13 @@ namespace BagoScout.Services
 
                 message.Body = bodyBuilder.ToMessageBody();
 
-                using var client = new SmtpClient();
-                await client.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort, SecureSocketOptions.StartTls);
-                await client.AuthenticateAsync(_emailSettings.Username, _emailSettings.Password);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-
+                await SendEmailAsync(message);
                 _logger.LogInformation($"Password reset email sent successfully to {toEmail}");
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error sending password reset email to {toEmail}: {ex.Message}");
+                _logger.LogError($"Error sending password reset email to {toEmail}: {ex.GetType().Name}: {ex.Message}");
                 return false;
             }
         }
@@ -285,18 +327,13 @@ namespace BagoScout.Services
 
                 message.Body = bodyBuilder.ToMessageBody();
 
-                using var client = new SmtpClient();
-                await client.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.SmtpPort, SecureSocketOptions.StartTls);
-                await client.AuthenticateAsync(_emailSettings.Username, _emailSettings.Password);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
-
+                await SendEmailAsync(message);
                 _logger.LogInformation($"Password reset OTP email sent successfully to {toEmail}");
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error sending password reset OTP email to {toEmail}: {ex.Message}");
+                _logger.LogError($"Error sending password reset OTP email to {toEmail}: {ex.GetType().Name}: {ex.Message}");
                 return false;
             }
         }

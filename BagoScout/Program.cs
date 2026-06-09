@@ -54,6 +54,10 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 // Register Email Service
 builder.Services.AddScoped<IEmailService, EmailService>();
 
+// Log email config on startup for diagnostics (masks password)
+var emailSection = builder.Configuration.GetSection("EmailSettings");
+Console.WriteLine($"[EmailConfig] Server={emailSection["SmtpServer"]} Port={emailSection["SmtpPort"]} From={emailSection["SenderEmail"]} User={emailSection["Username"]} HasPassword={!string.IsNullOrEmpty(emailSection["Password"])}");
+
 // Kestrel Environment Configuration
 if (builder.Environment.IsDevelopment())
 {
