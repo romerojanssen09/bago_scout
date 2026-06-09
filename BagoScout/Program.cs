@@ -51,7 +51,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Configure Email Settings
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 
-// Register HttpClient factory (used by EmailService to call Resend API)
+// Register HttpClient factory (used by EmailController)
 builder.Services.AddHttpClient("Resend", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(15);
@@ -60,9 +60,9 @@ builder.Services.AddHttpClient("Resend", client =>
 // Register Email Service
 builder.Services.AddScoped<IEmailService, EmailService>();
 
-// Log email config on startup for diagnostics (masks password)
+// Log email config on startup for diagnostics
 var emailSection = builder.Configuration.GetSection("EmailSettings");
-Console.WriteLine($"[EmailConfig] Server={emailSection["SmtpServer"]} Port={emailSection["SmtpPort"]} From={emailSection["SenderEmail"]} User={emailSection["Username"]} HasPassword={!string.IsNullOrEmpty(emailSection["Password"])}");
+Console.WriteLine($"[EmailConfig] Sender={emailSection["SenderEmail"]} ClientId={emailSection["GmailClientId"]?[..Math.Min(12, emailSection["GmailClientId"]?.Length ?? 0)]}... HasRefreshToken={!string.IsNullOrEmpty(emailSection["GmailRefreshToken"])}");
 
 // Kestrel Environment Configuration
 if (builder.Environment.IsDevelopment())
